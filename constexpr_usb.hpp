@@ -1,6 +1,8 @@
 #pragma once
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 namespace usbpp {
 
@@ -12,8 +14,12 @@ struct CharArray {
         return desc[i];
     }
 
+    constexpr uint8_t operator[](std::size_t i) const {
+        return desc[i];
+    }
+
     template<size_t N2, size_t N3>
-    constexpr void MergeArray(CharArray<N2> lh, CharArray<N3> rh) {
+    constexpr void MergeArray(const CharArray<N2>& lh, const CharArray<N3>& rh) {
         for (size_t i = 0; i < N2; ++i) {
             desc[i] = lh[i];
         }
@@ -162,7 +168,7 @@ struct BaseInterface {
     }
 
     template<size_t N2>
-    constexpr BaseInterface<N + N2> AddEndpoint(BaseEndpoint<N2> ep) {
+    constexpr BaseInterface<N + N2> AddEndpoint(const BaseEndpoint<N2>& ep) {
         NumEndpoints() = NumEndpoints() + 1;
 
         BaseInterface<N + N2> ret;
@@ -171,7 +177,7 @@ struct BaseInterface {
     }
 
     template<size_t N2>
-    constexpr BaseInterface<N + N2> AddOtherDesc(CharArray<N2> desc) {
+    constexpr BaseInterface<N + N2> AddOtherDesc(CharArray<N2>&& desc) {
         BaseInterface<N + N2> ret;
         ret.char_array.MergeArray(char_array, desc);
         return ret;
@@ -205,7 +211,7 @@ struct BaseInterfaceAssociation {
     }
 
     template<size_t N2>
-    constexpr BaseInterfaceAssociation<N + N2> AddInterface(BaseInterface<N2> interface) {
+    constexpr BaseInterfaceAssociation<N + N2> AddInterface(BaseInterface<N2>&& interface) {
         InterfaceCount() = InterfaceCount() + 1;
 
         BaseInterfaceAssociation<N + N2> ret;
@@ -241,7 +247,7 @@ struct BaiscConfig {
     }
 
     template<size_t INTERFACE_N>
-    constexpr BaiscConfig<N + INTERFACE_N> AddInterface(BaseInterface<INTERFACE_N> interface) {
+    constexpr BaiscConfig<N + INTERFACE_N> AddInterface(BaseInterface<INTERFACE_N>&& interface) {
         NumInterface() = NumInterface() + 1;
 
         BaiscConfig<N + INTERFACE_N> ret;
@@ -251,7 +257,7 @@ struct BaiscConfig {
     }
 
     template<size_t N2>
-    constexpr BaiscConfig<N + N2> AddInterfaceAssociation(BaseInterfaceAssociation<N2> association) {
+    constexpr BaiscConfig<N + N2> AddInterfaceAssociation(BaseInterfaceAssociation<N2>&& association) {
         association.FirstInterface() = NumInterface();
         NumInterface() = NumInterface() + association.InterfaceCount();
 
