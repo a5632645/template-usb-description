@@ -12,11 +12,13 @@ Config{
     },
     UAC2_InterfaceAssociation{
         UAC2_InterfaceAssociation_InitPack{
-            .str_id = 0
+            .str_id = 0,
+            .protocol = 0x20
         },
         AudioControlInterface{
-            AudioControlInterfaceInitPack{
+            InterfaceInitPackClassed{
                 .interface_no = 0,
+                .alter = 0,
                 .protocol = 0x20,
                 .str_id = 0
             },
@@ -42,8 +44,10 @@ Config{
             }
         },
         AudioStreamInterface{
-            AudioStreamInterfaceInitPack{
+            InterfaceInitPackClassed{
                 .interface_no = 1,
+                .alter = 0,
+                .protocol = 0x20,
                 .str_id = 0
             },
             TerminalLink{

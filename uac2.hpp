@@ -143,22 +143,17 @@ struct OutputTerminal {
     }
 };
 
-struct AudioControlInterfaceInitPack {
-    uint8_t interface_no;
-    uint8_t protocol;
-    uint8_t str_id;
-};
-// 1. one @AudioControlInterfaceInitPack
+// 1. one @InterfaceInitPack
 // 2. one @AudioFunction
 template<class... AUDIOFUNCTION>
 struct AudioControlInterface : public Interface<AudioFunction<AUDIOFUNCTION...>> {
     constexpr AudioControlInterface(
-        AudioControlInterfaceInitPack pack,
+        InterfaceInitPackClassed pack,
         const AudioFunction<AUDIOFUNCTION...>& function
     ) : Interface<AudioFunction<AUDIOFUNCTION...>>(
         InterfaceInitPack{
             .interface_no = pack.interface_no,
-            .alter = 0,
+            .alter = pack.alter,
             .class_ = 1,
             .subclass = 1,
             .protocol = pack.protocol,
@@ -208,12 +203,8 @@ struct TerminalLink {
     }
 };
 
-struct AudioStreamInterfaceInitPack {
-    uint8_t interface_no;
-    uint8_t str_id;
-};
 // this class contains 2 interfaces, one alter=0 and one alter=1
-// 1. one @AudioStreamInterfaceInitPack
+// 1. one @InterfaceInitPackClassed, alter will be ignored
 // 2. one @TerminalLink
 // 3. any @AudioStreamFormat
 // 4. any @Endpoint
@@ -224,7 +215,7 @@ struct AudioStreamInterface : public IConfigCustom, public IInterfaceAssociation
     size_t begin = 0;
 
     constexpr AudioStreamInterface(
-        AudioStreamInterfaceInitPack pack,
+        InterfaceInitPackClassed pack,
         TerminalLink link,
         const DESCS&... desc
     ) {
@@ -234,7 +225,7 @@ struct AudioStreamInterface : public IConfigCustom, public IInterfaceAssociation
                 .alter = 0,
                 .class_ = 1,
                 .subclass = 2,
-                .protocol = 0x20,
+                .protocol = pack.protocol,
                 .str_id = pack.str_id
             }
         };
@@ -273,6 +264,7 @@ struct AudioStreamInterface : public IConfigCustom, public IInterfaceAssociation
 
 struct UAC2_InterfaceAssociation_InitPack {
     uint8_t str_id;
+    uint8_t protocol;
 };
 // 1. one @UAC2_InterfaceAssociation_InitPack
 // 2. one @AudioControlInterface
@@ -286,7 +278,7 @@ struct UAC2_InterfaceAssociation : public InterfaceAssociation<INTERFACE...> {
         InterfaceAssociationInitPack{
             .function_class = 1,
             .function_subclass = 0,
-            .function_protocol = 0x20,
+            .function_protocol = pack.protocol,
             .function_str_id = pack.str_id
         },
         interface...

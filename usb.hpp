@@ -313,6 +313,11 @@ struct Config : IConfig {
         char_array[7] = pack.attribute;
         char_array[8] = pack.power;
         (AppendDesc(desc),...);
+
+        // check config no
+        if (pack.config_no == 0) {
+            throw "pack.config_no can not be 0";
+        }
     }
 
     template<class DESC>
