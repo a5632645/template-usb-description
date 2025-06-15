@@ -49,8 +49,6 @@ struct DESC_LEN_SUMMER {
     static constexpr size_t len = (0 + ... + desc_len<DESC>);
 };
 
-struct IEndpoint {};
-
 struct BulkInitPack {
     uint8_t address;
     uint16_t max_pack_size;
@@ -90,6 +88,7 @@ struct ControlInitPack {
     uint8_t interval;
 };
 
+struct IEndpoint {};
 template<class... DESCS>
 struct Endpoint : IEndpoint {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 7;
@@ -163,6 +162,24 @@ struct IInterface {
     static constexpr size_t protocol_offset = 7;
     static constexpr size_t str_id_offset = 8;
 };
+/*
+ * when placed into a interface
+ * the interface will copy the endpoint's descriptor
+ * and increase the num of endpoint
+ * so you just need to inherit from this class
+ *
+ * unless you want to modify the interface's behavior,
+ * eg: your inherited class or non inhirited class have 2 or more endpoint
+ * you have to inherit from @IInterfaceCustom
+ * the copy of descriptor will be automatically merged
+ * but the num of endpoint will not
+*/
+template<class T>
+struct IInterfaceCustom {
+    constexpr void OnAddToInterface(auto& interface) const {
+        (void)interface;
+    }
+};
 template<class... DESCS>
 struct Interface : IInterface {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;
@@ -188,6 +205,9 @@ struct Interface : IInterface {
         if constexpr (std::derived_from<DESC, IEndpoint>) {
             char_array[4]++;
         }
+        else if constexpr (std::derived_from<DESC, IInterfaceCustom<DESC>>) {
+            desc.OnAddToInterface(*this);
+        }
 
         size_t desc_len = desc.len;
         for (size_t i = 0; i < desc_len ; ++i) {
@@ -207,6 +227,12 @@ struct IInterfaceAssociation {
     static constexpr size_t first_interface_offset = 2;
     static constexpr size_t interface_count_offset = 3;
 };
+/*
+ * like the @IInterfaceCustom, if your class have 2 or more interface
+ * you have to inherit from @IInterfaceAssociationCustom
+ * the copy of descriptor will be automatically merged
+ * but the num of interface will not
+*/
 template<class T>
 struct IInterfaceAssociationCustom {
     constexpr void OnAddToInterfaceAssociation(auto& association) const {
@@ -270,6 +296,12 @@ struct IConfig {
     static constexpr size_t attribute_offset = 6;
     static constexpr size_t power_offset = 7;
 };
+/*
+ * like the @IInterfaceCustom and @IInterfaceAssociationCustom
+ * if your class have 2 or more interface or interface association
+ * you have to inherit from @IConfigCustom
+ * the copy of descriptor will be automatically merged
+*/
 template<class T>
 struct IConfigCustom {
     constexpr void OnAddToConfig(auto& config) const {
@@ -625,31 +657,6 @@ Config{
                 }
             }
         },
-        // Interface{
-        //     InterfaceInitPack{
-        //         0, 0, 1, 1, 0x20, 0
-        //     },
-        //     AudioFunction{
-        //         AudioFunctionInitPack{
-        //             0x0200, 1, 0
-        //         },
-        //         Clock{
-        //             3, 2, 3, 0, 0
-        //         },
-        //         InputTerminal{
-        //             1, 0x0101, 0, 3, 0, 0, {2, 0x3, 0}
-        //         },
-        //         FeatureUnit<3>{
-        //             FeatureUnitInitPack{
-        //                 4, 1, 0
-        //             }, {0xf, 0xf, 0xf}
-        //         },
-        //         OutputTerminal{
-        //             2, 0x0301, 0, 4, 3, 0, 0
-        //         }
-        //     }
-        // },
-
         AudioStreamInterface{
             AudioStreamInterfaceInitPack{
                 .interface_no = 1,
@@ -678,35 +685,6 @@ Config{
                 }
             }
         }
-        // Interface{
-        //     InterfaceInitPack{
-        //         1, 0, 1, 2, 0x20, 0
-        //     }
-        // },
-        // Interface{
-        //     InterfaceInitPack{
-        //         1, 1, 1, 2, 0x20, 0
-        //     },
-        //     CustomDesc{
-        //         std::array{16, 0x24, 0x01, 0x01, 0x00, 0x01, 0x01, 0, 0, 0, 2, 0x3, 0, 0, 0, 0}
-        //     },
-        //     CustomDesc{
-        //         std::array{6, 0x24, 0x02, 0x01, 0x04, 32}
-        //     },
-        //     Endpoint{
-        //         IsochronousInitPack{
-        //             1, 1024, 1, SynchronousType::Isochronous, IsoEpType::Data
-        //         },
-        //         CustomDesc{
-        //             std::array{8, 0x25, 0x01, 0, 0, 0, 0, 0}
-        //         }
-        //     },
-        //     Endpoint{
-        //         IsochronousInitPack{
-        //             0x81, 4, 1, SynchronousType::None, IsoEpType::Feedback
-        //         }
-        //     }
-        // }
     },
     InterfaceAssociation{
         InterfaceAssociationInitPack{
