@@ -3,6 +3,7 @@
 #include "usb.hpp"
 #include "uac2.hpp"
 #include "cdc.hpp"
+#include "comp.hpp"
 
 static constexpr auto test =
 Config{
@@ -110,10 +111,7 @@ Config{
             }
         }
     },
-}.char_array;
-
-extern "C" const uint8_t* usb_descriptor = test.desc;
-extern "C" const size_t len = test.desc_len;
+};
 
 #define USB_WORD(X) X & 0xff, X >> 8
 #define USB_DWORD(X) X & 0xff, (X >> 8) & 0xff, (X >> 16) & 0xff, (X >> 24)
@@ -360,28 +358,7 @@ constexpr uint8_t MyCfgDescr_HS[] =
     0x04,
 };
 
-struct CompareResult {
-    bool diff = false;
-    uint32_t index = 0;
-    uint8_t a = 0;
-    uint8_t b = 0;
-};
-template<size_t N1>
-static constexpr CompareResult Compare(const uint8_t(&a)[N1], const uint8_t(&b)[N1]) {
-    CompareResult res;
-    for (size_t i = 0; i < N1; ++i) {
-        if (a[i] != b[i]) {
-            res.diff = true;
-            res.index = i;
-            res.a = a[i];
-            res.b = b[i];
-            break;
-        }
-    }
-    return res;
-}
-
-static constexpr auto cmp = Compare(MyCfgDescr_HS, test.desc);
+static constexpr auto cmp = Compare(MyCfgDescr_HS, test.char_array.desc);
 static constexpr uint32_t fs[] {
     cmp.a,
     cmp.b,
@@ -389,14 +366,3 @@ static constexpr uint32_t fs[] {
     cmp.diff
 };
 static_assert(cmp.diff == 0);
-
-int main(void) {
-    // std::ofstream file{"gen.txt"};
-    // for (auto c : test.desc) {
-    //     file << std::format("0x{:02x}\n", c);
-    // }
-    // std::ofstream file2{"compare.txt"};
-    // for (auto c : MyCfgDescr_HS) {
-    //     file2 << std::format("0x{:02x}\n", c);
-    // }
-}

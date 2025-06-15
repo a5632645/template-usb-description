@@ -162,7 +162,7 @@ struct IInterface {
  * when placed into a interface
  * the interface will copy the endpoint's descriptor
  * and increase the num of endpoint
- * so you just need to inherit from this class
+ * so you just need to inherit from @Endpoint class
  *
  * unless you want to modify the interface's behavior,
  * eg: your inherited class or non inhirited class have 2 or more endpoint

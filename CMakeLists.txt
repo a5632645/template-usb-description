@@ -9,4 +9,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
 
 add_compile_options(-Wall -Wextra)
 
-add_executable(constexpr-usb main.cpp)
+file(GLOB_RECURSE sources example/*.cpp)
+add_executable(constexpr-usb ${sources})
+target_include_directories(constexpr-usb PUBLIC .)
