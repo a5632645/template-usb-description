@@ -174,12 +174,7 @@ struct IInterface {
  * the copy of descriptor will be automatically merged
  * but the num of endpoint will not
 */
-template<class T>
-struct IInterfaceCustom {
-    constexpr void OnAddToInterface(auto& interface) const {
-        (void)interface;
-    }
-};
+struct IInterfaceCustom {};
 template<class... DESCS>
 struct Interface : IInterface {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;
@@ -205,7 +200,7 @@ struct Interface : IInterface {
         if constexpr (std::derived_from<DESC, IEndpoint>) {
             char_array[4]++;
         }
-        else if constexpr (std::derived_from<DESC, IInterfaceCustom<DESC>>) {
+        else if constexpr (std::derived_from<DESC, IInterfaceCustom>) {
             desc.OnAddToInterface(*this);
         }
 
@@ -232,13 +227,10 @@ struct IInterfaceAssociation {
  * you have to inherit from @IInterfaceAssociationCustom
  * the copy of descriptor will be automatically merged
  * but the num of interface will not
+ *
+ *  constexpr void OnAddToInterfaceAssociation(auto& association) const
 */
-template<class T>
-struct IInterfaceAssociationCustom {
-    constexpr void OnAddToInterfaceAssociation(auto& association) const {
-        (void)association;
-    }
-};
+struct IInterfaceAssociationCustom {};
 template<class... DESCS>
 struct InterfaceAssociation : IInterfaceAssociation {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 8;
@@ -269,7 +261,7 @@ struct InterfaceAssociation : IInterfaceAssociation {
                 char_array[3]++;
             }
         }
-        else if constexpr (std::derived_from<DESC, IInterfaceAssociationCustom<DESC>>) {
+        else if constexpr (std::derived_from<DESC, IInterfaceAssociationCustom>) {
             desc.OnAddToInterfaceAssociation(*this);
         }
 
@@ -301,13 +293,10 @@ struct IConfig {
  * if your class have 2 or more interface or interface association
  * you have to inherit from @IConfigCustom
  * the copy of descriptor will be automatically merged
+ *
+ * constexpr void OnAddToConfig(auto& config) const
 */
-template<class T>
-struct IConfigCustom {
-    constexpr void OnAddToConfig(auto& config) const {
-        static_cast<T*>(this)->OnAddToConfig(config);
-    }
-};
+struct IConfigCustom {};
 template<class... DESCS>
 struct Config : IConfig {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;
@@ -338,7 +327,7 @@ struct Config : IConfig {
         else if constexpr (std::derived_from<DESC, IInterfaceAssociation>) {
             char_array[4] += desc.char_array[3];
         }
-        else if constexpr (std::derived_from<DESC, IConfigCustom<DESC>>) {
+        else if constexpr (std::derived_from<DESC, IConfigCustom>) {
             desc.OnAddToConfig(*this);
         }
 
@@ -551,7 +540,7 @@ struct AudioStreamInterfaceInitPack {
     uint8_t str_id;
 };
 template<class... DESCS>
-struct AudioStreamInterface : public IConfigCustom<AudioStreamInterface<DESCS...>>, public IInterfaceAssociationCustom<AudioStreamInterface<DESCS...>> {
+struct AudioStreamInterface : public IConfigCustom, public IInterfaceAssociationCustom {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + TerminalLink::len + 9 * 2;
     CharArray<len> char_array;
     size_t begin = 0;
@@ -606,6 +595,13 @@ struct AudioStreamInterface : public IConfigCustom<AudioStreamInterface<DESCS...
         association.char_array[IInterfaceAssociation::interface_count_offset]++;
     }
 };
+
+
+
+// --------------------------------------------------------------------------------
+// CDC
+// --------------------------------------------------------------------------------
+
 
 template<size_t N>
 struct CustomDesc {
