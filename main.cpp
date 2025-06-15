@@ -112,6 +112,9 @@ Config{
     },
 }.char_array;
 
+extern "C" const uint8_t* usb_descriptor = test.desc;
+extern "C" const size_t len = test.desc_len;
+
 #define USB_WORD(X) X & 0xff, X >> 8
 #define USB_DWORD(X) X & 0xff, (X >> 8) & 0xff, (X >> 16) & 0xff, (X >> 24)
 
