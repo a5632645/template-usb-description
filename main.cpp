@@ -6,6 +6,7 @@
 #include <initializer_list>
 #include <iostream>
 #include <stdint.h>
+#include <sys/stat.h>
 #include <type_traits>
 #include <utility>
 #include <fstream>
@@ -13,8 +14,12 @@
 #define USB_WORD(X) X & 0xff, X >> 8
 #define USB_DWORD(X) X & 0xff, (X >> 8) & 0xff, (X >> 16) & 0xff, (X >> 24)
 
+// --------------------------------------------------------------------------------
+// STANDARD USB
+// --------------------------------------------------------------------------------
 template<size_t N>
 struct CharArray {
+    static constexpr size_t desc_len = N;
     uint8_t desc[N]{};
     
     constexpr uint8_t& operator[](size_t i) {
@@ -44,9 +49,6 @@ struct DESC_LEN_SUMMER {
     static constexpr size_t len = (0 + ... + desc_len<DESC>);
 };
 
-struct IConfig {};
-struct IInterface {};
-struct IInterfaceAssociation {};
 struct IEndpoint {};
 
 struct BulkInitPack {
@@ -152,6 +154,15 @@ struct InterfaceInitPack {
     uint8_t str_id;
 };
 
+struct IInterface {
+    static constexpr size_t interface_no_offset = 2;
+    static constexpr size_t alter_offset = 3;
+    static constexpr size_t num_endpoint_offset = 4;
+    static constexpr size_t class_offset = 5;
+    static constexpr size_t subclass_offset = 6;
+    static constexpr size_t protocol_offset = 7;
+    static constexpr size_t str_id_offset = 8;
+};
 template<class... DESCS>
 struct Interface : IInterface {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;
@@ -192,7 +203,16 @@ struct InterfaceAssociationInitPack {
     uint8_t function_protocol;
     uint8_t function_str_id;
 };
-
+struct IInterfaceAssociation {
+    static constexpr size_t first_interface_offset = 2;
+    static constexpr size_t interface_count_offset = 3;
+};
+template<class T>
+struct IInterfaceAssociationCustom {
+    constexpr void OnAddToInterfaceAssociation(auto& association) const {
+        (void)association;
+    }
+};
 template<class... DESCS>
 struct InterfaceAssociation : IInterfaceAssociation {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 8;
@@ -223,6 +243,9 @@ struct InterfaceAssociation : IInterfaceAssociation {
                 char_array[3]++;
             }
         }
+        else if constexpr (std::derived_from<DESC, IInterfaceAssociationCustom<DESC>>) {
+            desc.OnAddToInterfaceAssociation(*this);
+        }
 
         size_t desc_len = desc.len;
         for (size_t i = 0; i < desc_len ; ++i) {
@@ -238,7 +261,21 @@ struct ConfigInitPack {
     uint8_t attribute;
     uint8_t power;
 };
-
+struct IConfig {
+    static constexpr size_t len_offset = 0;
+    static constexpr size_t type_offset = 1;
+    static constexpr size_t total_len_offset = 2;
+    static constexpr size_t num_interface_offset = 4;
+    static constexpr size_t str_id_offset = 5;
+    static constexpr size_t attribute_offset = 6;
+    static constexpr size_t power_offset = 7;
+};
+template<class T>
+struct IConfigCustom {
+    constexpr void OnAddToConfig(auto& config) const {
+        static_cast<T*>(this)->OnAddToConfig(config);
+    }
+};
 template<class... DESCS>
 struct Config : IConfig {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;
@@ -269,6 +306,9 @@ struct Config : IConfig {
         else if constexpr (std::derived_from<DESC, IInterfaceAssociation>) {
             char_array[4] += desc.char_array[3];
         }
+        else if constexpr (std::derived_from<DESC, IConfigCustom<DESC>>) {
+            desc.OnAddToConfig(*this);
+        }
 
         size_t desc_len = desc.len;
         for (size_t i = 0; i < desc_len ; ++i) {
@@ -278,6 +318,9 @@ struct Config : IConfig {
     }
 };
 
+// --------------------------------------------------------------------------------
+// UAC
+// --------------------------------------------------------------------------------
 struct AudioFunctionInitPack {
     uint16_t bcd_adc;
     uint8_t catalog;
@@ -412,6 +455,126 @@ struct OutputTerminal {
     }
 };
 
+struct AudioControlInterfaceInitPack {
+    uint8_t interface_no;
+    uint8_t protocol;
+    uint8_t str_id;
+};
+template<class... AUDIOFUNCTION>
+struct AudioControlInterface : public Interface<AudioFunction<AUDIOFUNCTION...>> {
+    constexpr AudioControlInterface(AudioControlInterfaceInitPack pack, const AudioFunction<AUDIOFUNCTION...>& function) 
+    : Interface<AudioFunction<AUDIOFUNCTION...>>(InterfaceInitPack{
+        .interface_no = pack.interface_no,
+        .alter = 0,
+        .class_ = 1,
+        .subclass = 1,
+        .protocol = pack.protocol,
+        .str_id = pack.str_id
+    }, function) {}
+};
+
+struct AudioStreamFormat {
+    static constexpr size_t len = 6;
+    CharArray<len> char_array {
+        6,
+        0x24,
+        0x02
+    };
+
+    constexpr AudioStreamFormat(uint8_t format_type, uint8_t subslotsize, uint8_t bits) {
+        char_array[3] = format_type;
+        char_array[4] = subslotsize;
+        char_array[5] = bits;
+    }
+};
+
+struct TerminalLink {
+    static constexpr size_t len = 16;
+    CharArray<len> char_array {
+        len,
+        0x24,
+        1
+    };
+
+    constexpr TerminalLink(uint8_t link, uint8_t control, uint8_t format, uint32_t formats, ChannelInitPack pack) {
+        char_array[3] = link;
+        char_array[4] = control;
+        char_array[5] = format;
+        char_array[6] = formats & 0xff;
+        char_array[7] = formats >> 8;
+        char_array[8] = formats >> 16;
+        char_array[9] = formats >> 24;
+        char_array[10] = pack.num_channel;
+        char_array[11] = pack.channel_config & 0xff;
+        char_array[12] = pack.channel_config >> 8;
+        char_array[13] = pack.channel_config >> 16;
+        char_array[14] = pack.channel_config >> 24;
+        char_array[15] = pack.channel_str_id;
+    }
+};
+
+struct AudioStreamInterfaceInitPack {
+    uint8_t interface_no;
+    uint8_t protocol;
+    uint8_t str_id;
+};
+template<class... DESCS>
+struct AudioStreamInterface : public IConfigCustom<AudioStreamInterface<DESCS...>>, public IInterfaceAssociationCustom<AudioStreamInterface<DESCS...>> {
+    static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + TerminalLink::len + 9 * 2;
+    CharArray<len> char_array;
+    size_t begin = 0;
+
+    // you should add descriptions
+    // 1. any @AudioStreamFormat
+    // 2. any @Endpoint
+    constexpr AudioStreamInterface(
+        AudioStreamInterfaceInitPack pack,
+        TerminalLink link,
+        const DESCS&... desc
+    ) {
+        Interface<> empty_interface{
+            InterfaceInitPack{
+                .interface_no = pack.interface_no,
+                .alter = 0,
+                .class_ = 1,
+                .subclass = 2,
+                .protocol = pack.protocol,
+                .str_id = pack.str_id
+            }
+        };
+        Interface<TerminalLink, DESCS...> interface{
+            InterfaceInitPack{
+                .interface_no = pack.interface_no,
+                .alter = 1,
+                .class_ = 1,
+                .subclass = 2,
+                .protocol = pack.protocol,
+                .str_id = pack.str_id
+            },
+            link,
+            desc...
+        };
+        for (size_t i = 0; i < empty_interface.len; ++i) {
+            char_array[i] = empty_interface.char_array[i];
+        }
+        begin = empty_interface.len;
+        for (size_t i = 0; i < interface.len; ++i) {
+            char_array[begin + i] = interface.char_array[i];
+        }
+    }
+
+    constexpr void OnAddToConfig(auto& config) const {
+        config.char_array[IConfig::num_interface_offset]++;
+    }
+
+    constexpr void OnAddToInterfaceAssociation(auto& association) const {
+        if (association.char_array[IInterfaceAssociation::interface_count_offset] == 0) {
+            association.char_array[IInterfaceAssociation::first_interface_offset] = char_array[IInterface::interface_no_offset];
+        }
+        association.char_array[IInterfaceAssociation::interface_count_offset]++;
+    }
+};
+
 template<size_t N>
 struct CustomDesc {
     static constexpr size_t len = N;
@@ -436,9 +599,11 @@ Config{
         InterfaceAssociationInitPack{
             1, 0, 0x20, 0
         },
-        Interface{
-            InterfaceInitPack{
-                0, 0, 1, 1, 0x20, 0
+        AudioControlInterface{
+            AudioControlInterfaceInitPack{
+                .interface_no = 0,
+                .protocol = 0x20,
+                .str_id = 0
             },
             AudioFunction{
                 AudioFunctionInitPack{
@@ -460,20 +625,44 @@ Config{
                 }
             }
         },
-        Interface{
-            InterfaceInitPack{
-                1, 0, 1, 2, 0x20, 0
-            }
-        },
-        Interface{
-            InterfaceInitPack{
-                1, 1, 1, 2, 0x20, 0
+        // Interface{
+        //     InterfaceInitPack{
+        //         0, 0, 1, 1, 0x20, 0
+        //     },
+        //     AudioFunction{
+        //         AudioFunctionInitPack{
+        //             0x0200, 1, 0
+        //         },
+        //         Clock{
+        //             3, 2, 3, 0, 0
+        //         },
+        //         InputTerminal{
+        //             1, 0x0101, 0, 3, 0, 0, {2, 0x3, 0}
+        //         },
+        //         FeatureUnit<3>{
+        //             FeatureUnitInitPack{
+        //                 4, 1, 0
+        //             }, {0xf, 0xf, 0xf}
+        //         },
+        //         OutputTerminal{
+        //             2, 0x0301, 0, 4, 3, 0, 0
+        //         }
+        //     }
+        // },
+
+        AudioStreamInterface{
+            AudioStreamInterfaceInitPack{
+                .interface_no = 1,
+                .protocol = 0x20,
+                .str_id = 0
             },
-            CustomDesc{
-                std::array{16, 0x24, 0x01, 0x01, 0x00, 0x01, 0x01, 0, 0, 0, 2, 0x3, 0, 0, 0, 0}
+            TerminalLink{
+                1, 0, 1, 1, ChannelInitPack{
+                    2, 3, 0
+                }
             },
-            CustomDesc{
-                std::array{6, 0x24, 0x02, 0x01, 0x04, 32}
+            AudioStreamFormat{
+                1, 4, 32
             },
             Endpoint{
                 IsochronousInitPack{
@@ -489,6 +678,35 @@ Config{
                 }
             }
         }
+        // Interface{
+        //     InterfaceInitPack{
+        //         1, 0, 1, 2, 0x20, 0
+        //     }
+        // },
+        // Interface{
+        //     InterfaceInitPack{
+        //         1, 1, 1, 2, 0x20, 0
+        //     },
+        //     CustomDesc{
+        //         std::array{16, 0x24, 0x01, 0x01, 0x00, 0x01, 0x01, 0, 0, 0, 2, 0x3, 0, 0, 0, 0}
+        //     },
+        //     CustomDesc{
+        //         std::array{6, 0x24, 0x02, 0x01, 0x04, 32}
+        //     },
+        //     Endpoint{
+        //         IsochronousInitPack{
+        //             1, 1024, 1, SynchronousType::Isochronous, IsoEpType::Data
+        //         },
+        //         CustomDesc{
+        //             std::array{8, 0x25, 0x01, 0, 0, 0, 0, 0}
+        //         }
+        //     },
+        //     Endpoint{
+        //         IsochronousInitPack{
+        //             0x81, 4, 1, SynchronousType::None, IsoEpType::Feedback
+        //         }
+        //     }
+        // }
     },
     InterfaceAssociation{
         InterfaceAssociationInitPack{
