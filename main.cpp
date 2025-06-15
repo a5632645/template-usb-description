@@ -61,12 +61,25 @@ struct InterruptInitPack {
     uint8_t interval;
 };
 
+enum class SynchronousType {
+    None,
+    Isochronous,
+    Adaptive,
+    Synchronous
+};
+
+enum class IsoEpType {
+    Data,
+    Feedback,
+    ImplicitFeedback
+};
+
 struct IsochronousInitPack {
     uint8_t address;
     uint16_t max_pack_size;
     uint8_t interval;
-    uint8_t sync_type;
-    uint8_t endpoint_type;
+    SynchronousType sync_type;
+    IsoEpType endpoint_type;
 };
 
 struct ControlInitPack {
@@ -104,7 +117,7 @@ struct Endpoint : IEndpoint {
 
     constexpr Endpoint(IsochronousInitPack pack, const DESCS&... decs) {
         char_array[2] = pack.address;
-        char_array[3] = 0x01 | (pack.sync_type << 2) | (pack.endpoint_type << 4);
+        char_array[3] = 0x01 | (static_cast<uint8_t>(pack.sync_type) << 2) | (static_cast<uint8_t>(pack.endpoint_type) << 4);
         char_array[4] = pack.max_pack_size & 0xff;
         char_array[5] = pack.max_pack_size >> 8;
         char_array[6] = pack.interval;
@@ -202,11 +215,12 @@ struct InterfaceAssociation : IInterfaceAssociation {
     template<class DESC>
     constexpr void AppendDesc(const DESC& desc) {
         if constexpr (std::derived_from<DESC, IInterface>) {
-            if (desc.char_array[3] == 0) {
-                char_array[3]++;
-            }
+            // TODO: enhance logic
             if (char_array[3] == 0) {
                 char_array[2] = desc.char_array[2];
+            }
+            if (desc.char_array[3] == 0) {
+                char_array[3]++;
             }
         }
 
@@ -463,7 +477,7 @@ Config{
             },
             Endpoint{
                 IsochronousInitPack{
-                    1, 1024, 1, 0, 0
+                    1, 1024, 1, SynchronousType::Isochronous, IsoEpType::Data
                 },
                 CustomDesc{
                     std::array{8, 0x25, 0x01, 0, 0, 0, 0, 0}
@@ -471,7 +485,7 @@ Config{
             },
             Endpoint{
                 IsochronousInitPack{
-                    0x81, 4, 1, 0, 0
+                    0x81, 4, 1, SynchronousType::None, IsoEpType::Feedback
                 }
             }
         }
@@ -668,7 +682,7 @@ const uint8_t MyCfgDescr_HS[] =
     0x05,        // bDescriptorType (Endpoint)
     0x01,        // bEndpointAddress (OUT, EP1)
     0x05,        // bmAttributes (Isochronous, async, data ep)
-    USB_WORD(64),  // wMaxPacketSize (1024 bytes)
+    USB_WORD(1024),  // wMaxPacketSize (1024 bytes)
     0x01,        // bInterval (2^(X-1) frame)
 
     // Audio Streaming Endpoint Descriptor (General Audio)
