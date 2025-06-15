@@ -293,6 +293,8 @@ struct IConfig {
  * constexpr void OnAddToConfig(auto& config) const
 */
 struct IConfigCustom {};
+// 1. one @ConfigInitPack
+// 2. any @Interface or @InterfaceAssociation
 template<class... DESCS>
 struct Config : IConfig {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;

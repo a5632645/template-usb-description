@@ -9,9 +9,9 @@ Config{
     ConfigInitPack{
         1, 0, 0x80, 250
     },
-    InterfaceAssociation{
-        InterfaceAssociationInitPack{
-            1, 0, 0x20, 0
+    UAC2_InterfaceAssociation{
+        UAC2_InterfaceAssociation_InitPack{
+            .str_id = 0
         },
         AudioControlInterface{
             AudioControlInterfaceInitPack{
@@ -32,7 +32,8 @@ Config{
                 FeatureUnit<3>{
                     FeatureUnitInitPack{
                         4, 1, 0
-                    }, {0xf, 0xf, 0xf}
+                    },
+                    {0xf, 0xf, 0xf}
                 },
                 OutputTerminal{
                     2, 0x0301, 0, 4, 3, 0, 0
@@ -42,7 +43,6 @@ Config{
         AudioStreamInterface{
             AudioStreamInterfaceInitPack{
                 .interface_no = 1,
-                .protocol = 0x20,
                 .str_id = 0
             },
             TerminalLink{

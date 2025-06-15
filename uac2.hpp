@@ -1,14 +1,18 @@
 #pragma once
 #include "usb.hpp"
+#include <cstdint>
 
 // --------------------------------------------------------------------------------
 // UAC2
 // --------------------------------------------------------------------------------
+
 struct AudioFunctionInitPack {
     uint16_t bcd_adc;
     uint8_t catalog;
     uint8_t controls;
 };
+// 1. one @AudioFunctionInitPack
+// 2. any AudioFunctions
 template<class... DESCS>
 struct AudioFunction {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;
@@ -93,6 +97,7 @@ struct FeatureUnitInitPack {
     uint8_t source_id;
     uint8_t str_id;
 };
+// !!! this class have to manually set len in template
 template<size_t N>
 struct FeatureUnit {
     static constexpr size_t len = 6 + N * 4;
@@ -143,17 +148,24 @@ struct AudioControlInterfaceInitPack {
     uint8_t protocol;
     uint8_t str_id;
 };
+// 1. one @AudioControlInterfaceInitPack
+// 2. one @AudioFunction
 template<class... AUDIOFUNCTION>
 struct AudioControlInterface : public Interface<AudioFunction<AUDIOFUNCTION...>> {
-    constexpr AudioControlInterface(AudioControlInterfaceInitPack pack, const AudioFunction<AUDIOFUNCTION...>& function) 
-    : Interface<AudioFunction<AUDIOFUNCTION...>>(InterfaceInitPack{
-        .interface_no = pack.interface_no,
-        .alter = 0,
-        .class_ = 1,
-        .subclass = 1,
-        .protocol = pack.protocol,
-        .str_id = pack.str_id
-    }, function) {}
+    constexpr AudioControlInterface(
+        AudioControlInterfaceInitPack pack,
+        const AudioFunction<AUDIOFUNCTION...>& function
+    ) : Interface<AudioFunction<AUDIOFUNCTION...>>(
+        InterfaceInitPack{
+            .interface_no = pack.interface_no,
+            .alter = 0,
+            .class_ = 1,
+            .subclass = 1,
+            .protocol = pack.protocol,
+            .str_id = pack.str_id
+        },
+        function
+    ) {}
 };
 
 struct AudioStreamFormat {
@@ -198,18 +210,19 @@ struct TerminalLink {
 
 struct AudioStreamInterfaceInitPack {
     uint8_t interface_no;
-    uint8_t protocol;
     uint8_t str_id;
 };
+// this class contains 2 interfaces, one alter=0 and one alter=1
+// 1. one @AudioStreamInterfaceInitPack
+// 2. one @TerminalLink
+// 3. any @AudioStreamFormat
+// 4. any @Endpoint
 template<class... DESCS>
 struct AudioStreamInterface : public IConfigCustom, public IInterfaceAssociationCustom {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + TerminalLink::len + 9 * 2;
     CharArray<len> char_array;
     size_t begin = 0;
 
-    // you should add descriptions
-    // 1. any @AudioStreamFormat
-    // 2. any @Endpoint
     constexpr AudioStreamInterface(
         AudioStreamInterfaceInitPack pack,
         TerminalLink link,
@@ -221,7 +234,7 @@ struct AudioStreamInterface : public IConfigCustom, public IInterfaceAssociation
                 .alter = 0,
                 .class_ = 1,
                 .subclass = 2,
-                .protocol = pack.protocol,
+                .protocol = 0x20,
                 .str_id = pack.str_id
             }
         };
@@ -231,7 +244,7 @@ struct AudioStreamInterface : public IConfigCustom, public IInterfaceAssociation
                 .alter = 1,
                 .class_ = 1,
                 .subclass = 2,
-                .protocol = pack.protocol,
+                .protocol = 0x20,
                 .str_id = pack.str_id
             },
             link,
@@ -256,4 +269,26 @@ struct AudioStreamInterface : public IConfigCustom, public IInterfaceAssociation
         }
         association.char_array[IInterfaceAssociation::interface_count_offset]++;
     }
+};
+
+struct UAC2_InterfaceAssociation_InitPack {
+    uint8_t str_id;
+};
+// 1. one @UAC2_InterfaceAssociation_InitPack
+// 2. one @AudioControlInterface
+// 3. any @AudioStreamInterface
+template<class... INTERFACE>
+struct UAC2_InterfaceAssociation : public InterfaceAssociation<INTERFACE...> {
+    constexpr UAC2_InterfaceAssociation(
+        UAC2_InterfaceAssociation_InitPack pack,
+        const INTERFACE&... interface
+    ) : InterfaceAssociation<INTERFACE...>(
+        InterfaceAssociationInitPack{
+            .function_class = 1,
+            .function_subclass = 0,
+            .function_protocol = 0x20,
+            .function_str_id = pack.str_id
+        },
+        interface...
+    ) {}
 };
