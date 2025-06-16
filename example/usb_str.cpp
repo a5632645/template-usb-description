@@ -1,4 +1,4 @@
-#include "usb.hpp"
+#include "tpusb/usb.hpp"
 #include <cstddef>
 
 template<class CharType, size_t len, const CharType (&str)[len]>

@@ -1,6 +1,6 @@
-#include "hid.hpp"
+#include "tpusb/hid.hpp"
+#include "tpusb/usb.hpp"
 #include "comp.hpp"
-#include "usb.hpp"
 
 static constexpr auto hid =
 Config{

@@ -1,8 +1,8 @@
 #include <cstddef>
 #include <cstdint>
-#include "usb.hpp"
-#include "uac2.hpp"
-#include "cdc.hpp"
+#include "tpusb/usb.hpp"
+#include "tpusb/uac2.hpp"
+#include "tpusb/cdc.hpp"
 #include "comp.hpp"
 
 static constexpr auto test =
