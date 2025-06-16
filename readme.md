@@ -1,5 +1,7 @@
 # template-usb-descriptor
 A simple library for usb descriptor compile time generation
+> **Warning**  
+> This library need at least c++17 support
 # example
 
 a usb descriptor, which has a uac2.0 and a cdc interface  

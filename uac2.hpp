@@ -250,11 +250,13 @@ struct AudioStreamInterface : public IConfigCustom, public IInterfaceAssociation
         }
     }
 
-    constexpr void OnAddToConfig(auto& config) const {
+    template<class... CONFIG_DESCS>
+    constexpr void OnAddToConfig(Config<CONFIG_DESCS...>& config) const {
         config.char_array[IConfig::num_interface_offset]++;
     }
 
-    constexpr void OnAddToInterfaceAssociation(auto& association) const {
+    template<class... OTHER_DESCS>
+    constexpr void OnAddToInterfaceAssociation(InterfaceAssociation<OTHER_DESCS...>& association) const {
         if (association.char_array[IInterfaceAssociation::interface_count_offset] == 0) {
             association.char_array[IInterfaceAssociation::first_interface_offset] = char_array[IInterface::interface_no_offset];
         }

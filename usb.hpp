@@ -1,6 +1,6 @@
 #pragma once
 #include <array>
-#include <concepts>
+#include <type_traits>
 #include <cstdint>
 
 // --------------------------------------------------------------------------------
@@ -80,7 +80,7 @@ struct ControlInitPack {
 
 struct IEndpoint {};
 template<class... DESCS>
-struct Endpoint : IEndpoint {
+struct Endpoint : public IEndpoint {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 7;
     CharArray<len> char_array {
         7,
@@ -172,7 +172,7 @@ struct IInterface {
 */
 struct IInterfaceCustom {};
 template<class... DESCS>
-struct Interface : IInterface {
+struct Interface : public IInterface {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;
     CharArray<len> char_array {
         9,
@@ -193,10 +193,10 @@ struct Interface : IInterface {
 
     template<class DESC>
     constexpr void AppendDesc(const DESC& desc) {
-        if constexpr (std::derived_from<DESC, IEndpoint>) {
+        if constexpr (std::is_base_of_v<IEndpoint, DESC>) {
             char_array[4]++;
         }
-        else if constexpr (std::derived_from<DESC, IInterfaceCustom>) {
+        else if constexpr (std::is_base_of_v<IInterfaceCustom, DESC>) {
             desc.OnAddToInterface(*this);
         }
 
@@ -228,7 +228,7 @@ struct IInterfaceAssociation {
 */
 struct IInterfaceAssociationCustom {};
 template<class... DESCS>
-struct InterfaceAssociation : IInterfaceAssociation {
+struct InterfaceAssociation : public IInterfaceAssociation {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 8;
     CharArray<len> char_array {
         8,
@@ -248,7 +248,7 @@ struct InterfaceAssociation : IInterfaceAssociation {
 
     template<class DESC>
     constexpr void AppendDesc(const DESC& desc) {
-        if constexpr (std::derived_from<DESC, IInterface>) {
+        if constexpr (std::is_base_of_v<IInterface, DESC>) {
             // TODO: enhance logic
             if (char_array[3] == 0) {
                 char_array[2] = desc.char_array[2];
@@ -257,7 +257,7 @@ struct InterfaceAssociation : IInterfaceAssociation {
                 char_array[3]++;
             }
         }
-        else if constexpr (std::derived_from<DESC, IInterfaceAssociationCustom>) {
+        else if constexpr (std::is_base_of_v<IInterfaceAssociationCustom, DESC>) {
             desc.OnAddToInterfaceAssociation(*this);
         }
 
@@ -296,7 +296,7 @@ struct IConfigCustom {};
 // 1. one @ConfigInitPack
 // 2. any @Interface or @InterfaceAssociation
 template<class... DESCS>
-struct Config : IConfig {
+struct Config : public IConfig {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;
     CharArray<len> char_array {
         9,
@@ -322,15 +322,15 @@ struct Config : IConfig {
 
     template<class DESC>
     constexpr void AppendDesc(const DESC& desc) {
-        if constexpr (std::derived_from<DESC, IInterface>) {
+        if constexpr (std::is_base_of_v<IInterface, DESC>) {
             if (desc.char_array[3] == 0) {
                 char_array[4]++;
             }
         }
-        else if constexpr (std::derived_from<DESC, IInterfaceAssociation>) {
+        else if constexpr (std::is_base_of_v<IInterfaceAssociation, DESC>) {
             char_array[4] += desc.char_array[3];
         }
-        else if constexpr (std::derived_from<DESC, IConfigCustom>) {
+        else if constexpr (std::is_base_of_v<IConfigCustom, DESC>) {
             desc.OnAddToConfig(*this);
         }
 
