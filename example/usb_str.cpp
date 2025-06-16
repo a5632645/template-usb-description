@@ -1,5 +1,10 @@
 #include "tpusb/usb.hpp"
+#include <chrono>
 #include <cstddef>
+#include <iostream>
+#include <thread>
+
+namespace internal {
 
 template<class CharType, size_t len, const CharType (&str)[len]>
 struct CompileTimeUtf8ToUnicodeLength {
@@ -36,16 +41,16 @@ struct CompileTimeUtf8ToUnicodeLength {
     }
 };
 
-template<class CharType, size_t len, const CharType (&str)[len]>
+template<class CharType, size_t size, const CharType (&str)[size]>
 struct CompileTimeUtf8ToUnicode {
-    static constexpr size_t length = CompileTimeUtf8ToUnicodeLength<CharType, len, str>::GetUnicodeLength();
-    CharArray<length * 2> char_array;
+    static constexpr size_t len = CompileTimeUtf8ToUnicodeLength<CharType, size, str>::GetUnicodeLength() * 2;
+    CharArray<len> char_array;
 
     constexpr CompileTimeUtf8ToUnicode() {
         size_t pos = 0;
         size_t wpos = 0;
 
-        while (pos < len - 1) {
+        while (pos < size - 1) {
             uint32_t code = 0;
             auto c = str[pos];
 
@@ -55,15 +60,15 @@ struct CompileTimeUtf8ToUnicode {
                 pos += 1;
             } else if ((c & 0xE0) == 0xC0) {
                 // 2-byte UTF-8 character
-                code = ((c & 0x1F) << 6) | (static_cast<unsigned char>(str[pos + 1]) & 0x3F);
+                code = ((c & 0x1F) << 6) | ((str[pos + 1]) & 0x3F);
                 pos += 2;
             } else if ((c & 0xF0) == 0xE0) {
                 // 3-byte UTF-8 character
-                code = ((c & 0x0F) << 12) | ((static_cast<unsigned char>(str[pos + 1]) & 0x3F) << 6) | (static_cast<unsigned char>(str[pos + 2]) & 0x3F);
+                code = ((c & 0x0F) << 12) | (((str[pos + 1]) & 0x3F) << 6) | ((str[pos + 2]) & 0x3F);
                 pos += 3;
             } else if ((c & 0xF8) == 0xF0) {
                 // 4-byte UTF-8 character
-                code = ((c & 0x07) << 18) | ((static_cast<unsigned char>(str[pos + 1]) & 0x3F) << 12) | ((static_cast<unsigned char>(str[pos + 2]) & 0x3F) << 6) | (static_cast<unsigned char>(str[pos + 3]) & 0x3F);
+                code = ((c & 0x07) << 18) | (((str[pos + 1]) & 0x3F) << 12) | (((str[pos + 2]) & 0x3F) << 6) | ((str[pos + 3]) & 0x3F);
                 pos += 4;
             } else {
                 // Invalid UTF-8 start byte
@@ -75,12 +80,33 @@ struct CompileTimeUtf8ToUnicode {
             ++wpos;
         }
 
-        if (pos != len - 1) {
+        if (pos != size - 1) {
             throw "not utf8";
         }
         
     }
 };
 
-static constexpr char8_t str[] = u8"1我的世界234";
-static constexpr auto test = CompileTimeUtf8ToUnicode<char8_t, sizeof(str), str>{}.char_array.desc_len;
+}
+
+template<size_t N>
+struct USBString {
+    static constexpr size_t len = N;
+    CharArray<N> char_array;
+};
+
+#if __cplusplus >= 202002L
+#define USB_STR(STR)\
+    []{\
+        static constexpr char str[] = STR;\
+        return internal::CompileTimeUtf8ToUnicode<char8_t, sizeof(str), str>{};\
+    }();
+#else
+#define USB_STR(STR)\
+    []{\
+        static constexpr char str[] = STR;\
+        return internal::CompileTimeUtf8ToUnicode<char, sizeof(str), str>{};\
+    }();
+#endif
+
+static constexpr auto str1 = USB_STR(u8"这是好的test😅");
