@@ -1,7 +1,10 @@
 # template-usb-descriptor
 A simple library for usb descriptor compile time generation
-> **Warning**  
-> This library need at least c++17 support
+> [!WARNING]  
+> This library need at least c++17 support  
+
+> [!WARNING]  
+> This library currently not check the validity of the usb descriptor
 # example
 
 a usb descriptor, which has a uac2.0 and a cdc interface  
@@ -19,11 +22,13 @@ Config{
     },
     UAC2_InterfaceAssociation{
         UAC2_InterfaceAssociation_InitPack{
-            .str_id = 0
+            .str_id = 0,
+            .protocol = 0x20
         },
         AudioControlInterface{
-            AudioControlInterfaceInitPack{
+            InterfaceInitPackClassed{
                 .interface_no = 0,
+                .alter = 0,
                 .protocol = 0x20,
                 .str_id = 0
             },
@@ -49,8 +54,10 @@ Config{
             }
         },
         AudioStreamInterface{
-            AudioStreamInterfaceInitPack{
+            InterfaceInitPackClassed{
                 .interface_no = 1,
+                .alter = 0,
+                .protocol = 0x20,
                 .str_id = 0
             },
             TerminalLink{
@@ -118,9 +125,11 @@ Config{
             }
         }
     },
-}.char_array;
+};
 
-extern "C" const uint8_t* usb_descriptor = test.desc;
-extern "C" const size_t len = test.desc_len;
+extern "C" {
+const uint8_t* usb_descriptor = test.char_array.desc;
+const size_t len = test.char_array.desc_len;
+}
 
 ```
