@@ -5,6 +5,14 @@
 #include <cstdint>
 #include <initializer_list>
 
+// --------------------------------------------------------------------------------
+// USB MIDI 1.0  https://usb.org/sites/default/files/midi10.pdf
+// TODO
+//     test it
+//     check compacable with uac
+//     add Element
+// --------------------------------------------------------------------------------
+
 namespace tpusb{
 namespace midiv1{
 

@@ -3,7 +3,9 @@
 #include <cstdint>
 
 // --------------------------------------------------------------------------------
-// UAC2
+// UAC2  https://www.usb.org/sites/default/files/Audio2_with_Errata_and_ECN_through_Apr_2_2025.pdf
+// TODO
+//     add other audio functions
 // --------------------------------------------------------------------------------
 
 struct AudioFunctionInitPack {
