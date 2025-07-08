@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <cstddef>
 #include <type_traits>
 #include <cstdint>
 
@@ -29,6 +30,14 @@ struct CharArray {
             desc[i + N2] = rh[i];
         }
     }
+
+    template<size_t N2>
+    constexpr size_t Copy(size_t this_offset, const CharArray<N2>& other) {
+        for (size_t i = 0; i < N2; ++i) {
+            desc[this_offset + i] = other.desc[i];
+        }
+        return this_offset + N2;
+    }
 };
 
 template<class DESC>
@@ -45,10 +54,26 @@ struct BulkInitPack {
     uint8_t interval;
 };
 
+struct BulkInitPackLen9 {
+    uint8_t address;
+    uint16_t max_pack_size;
+    uint8_t interval;
+    uint8_t refresh;
+    uint8_t sync_address;
+};
+
 struct InterruptInitPack {
     uint8_t address;
     uint16_t max_pack_size;
     uint8_t interval;
+};
+
+struct InterruptInitPackLen9 {
+    uint8_t address;
+    uint16_t max_pack_size;
+    uint8_t interval;
+    uint8_t refresh;
+    uint8_t sync_address;
 };
 
 enum class SynchronousType {
@@ -72,13 +97,41 @@ struct IsochronousInitPack {
     IsoEpType endpoint_type;
 };
 
+struct IsochronousInitPackLen9 {
+    uint8_t address;
+    uint16_t max_pack_size;
+    uint8_t interval;
+    SynchronousType sync_type;
+    IsoEpType endpoint_type;
+    uint8_t refresh;
+    uint8_t sync_address;
+};
+
 struct ControlInitPack {
     uint8_t address;
     uint16_t max_pack_size;
     uint8_t interval;
 };
 
-struct IEndpoint {};
+struct ControlInitPackLen9 {
+    uint8_t address;
+    uint16_t max_pack_size;
+    uint8_t interval;
+    uint8_t refresh;
+    uint8_t sync_address;
+};
+
+struct IEndpoint {
+    static constexpr size_t len_offset = 0;
+    static constexpr size_t desc_type_offset = 1;
+    static constexpr size_t address_offset = 2;
+    static constexpr size_t attribute_offset = 3;
+    static constexpr size_t max_pack_low_offset = 4;
+    static constexpr size_t max_pack_high_offset = 5;
+    static constexpr size_t interval_offset = 6;
+    static constexpr size_t refresh_offset = 7;
+    static constexpr size_t sync_address_offset = 8;
+};
 template<class... DESCS>
 struct Endpoint : public IEndpoint {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 7;
@@ -121,6 +174,69 @@ struct Endpoint : public IEndpoint {
         char_array[4] = pack.max_pack_size & 0xff;
         char_array[5] = pack.max_pack_size >> 8;
         char_array[6] = pack.interval;
+        (AppendDesc(decs),...);
+    }
+
+    template<class DESC>
+    constexpr void AppendDesc(const DESC& desc) {
+        size_t desc_len = desc.len;
+        for (size_t i = 0; i < desc_len ; ++i) {
+            char_array[begin + i] = desc.char_array[i];
+        }
+        begin += desc_len;
+    }
+};
+
+template<class... DESCS>
+struct EndpointLen9 : public IEndpoint {
+    static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;
+    CharArray<len> char_array {
+        9,
+        5,
+    };
+    size_t begin = 9;
+
+    constexpr EndpointLen9(BulkInitPackLen9 pack, const DESCS&... decs) {
+        char_array[2] = pack.address;
+        char_array[3] = 0x02;
+        char_array[4] = pack.max_pack_size & 0xff;
+        char_array[5] = pack.max_pack_size >> 8;
+        char_array[6] = pack.interval;
+        char_array[IEndpoint::refresh_offset] = pack.refresh;
+        char_array[IEndpoint::sync_address_offset] = pack.sync_address;
+        (AppendDesc(decs),...);
+    }
+
+    constexpr EndpointLen9(InterruptInitPackLen9 pack, const DESCS&... decs) {
+        char_array[2] = pack.address;
+        char_array[3] = 0x03;
+        char_array[4] = pack.max_pack_size & 0xff;
+        char_array[5] = pack.max_pack_size >> 8;
+        char_array[6] = pack.interval;
+        char_array[IEndpoint::refresh_offset] = pack.refresh;
+        char_array[IEndpoint::sync_address_offset] = pack.sync_address;
+        (AppendDesc(decs),...);
+    }
+
+    constexpr EndpointLen9(IsochronousInitPackLen9 pack, const DESCS&... decs) {
+        char_array[2] = pack.address;
+        char_array[3] = 0x01 | (static_cast<uint8_t>(pack.sync_type) << 2) | (static_cast<uint8_t>(pack.endpoint_type) << 4);
+        char_array[4] = pack.max_pack_size & 0xff;
+        char_array[5] = pack.max_pack_size >> 8;
+        char_array[6] = pack.interval;
+        char_array[IEndpoint::refresh_offset] = pack.refresh;
+        char_array[IEndpoint::sync_address_offset] = pack.sync_address;
+        (AppendDesc(decs),...);
+    }
+
+    constexpr EndpointLen9(ControlInitPackLen9 pack, const DESCS&... decs) {
+        char_array[2] = pack.address;
+        char_array[3] = 0;
+        char_array[4] = pack.max_pack_size & 0xff;
+        char_array[5] = pack.max_pack_size >> 8;
+        char_array[6] = pack.interval;
+        char_array[IEndpoint::refresh_offset] = pack.refresh;
+        char_array[IEndpoint::sync_address_offset] = pack.sync_address;
         (AppendDesc(decs),...);
     }
 
