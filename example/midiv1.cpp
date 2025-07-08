@@ -20,18 +20,16 @@ Config{
             .protocol = 0,
             .str_id = 0
         },
-        midiv1::MIDIAdapter{
-            midiv1::ExternalMidiInJack{
-                1, 2
-            },
-            midiv1::ExternalMidiOutJack{
-                3, 4
-            }
+        midiv1::ExternalMidiInJack{
+            2, 1
+        },
+        midiv1::ExternalMidiOutJack{
+            3, 4
         },
         midiv1::MidiEndpoint{
             BulkInitPack{
-                .address = 1, // OUT
-                .max_pack_size = 0,
+                .address = 0x1, // OUT
+                .max_pack_size = 64,
                 .interval = 0
             },
             midiv1::EndpointJackAssociation<1>{
@@ -41,13 +39,13 @@ Config{
         midiv1::MidiEndpoint{
             BulkInitPack{
                 .address = 0x81, // IN
-                .max_pack_size = 0,
-                .interval = 9
+                .max_pack_size = 64,
+                .interval = 0
             },
             midiv1::EndpointJackAssociation<1>{
-                1
+                2
             }
-        }
+        },
     }
 };
 
@@ -564,8 +562,6 @@ static constexpr uint8_t USBD_MIDI_CfgDesc[USB_MIDI_CONFIG_DESC_SIZE] =
 #endif
 };
 
-// this Class-Specific MS Interface Header Descriptor::wTotalLength contains endpoint?
-// i don't know, but they are not the same
 constexpr CompareResult cmp = Compare(config.char_array.desc, USBD_MIDI_CfgDesc);
 static constexpr uint32_t fs[] {
     cmp.a,

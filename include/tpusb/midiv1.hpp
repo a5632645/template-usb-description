@@ -124,7 +124,7 @@ struct ExternalMidiInJack {
             0
         };
         MidiOutJack<1> out_jack{
-            MidiJackType::EXTERNAL,
+            MidiJackType::EMBEDDED,
             usb_out_id,
             0,
             std::array{
@@ -139,13 +139,11 @@ struct ExternalMidiInJack {
     }
 };
 
-// 1. any @ExternalMidiInJack
-// 2. any @ExternalMidiOutJack
 template<class... JACK_DESCS>
-struct MIDIAdapter {
-    static constexpr size_t jacks_len = DESC_LEN_SUMMER<JACK_DESCS...>::len;
-    static constexpr size_t len = jacks_len + 7;
-    CharArray<len> char_array {
+struct MIDIAdapterHeader {
+    static constexpr size_t jacks_len = DESC_LEN_SUMMER<JACK_DESCS...>::len + 7;
+    static constexpr size_t len = 7;
+    CharArray<7> char_array {
         7,
         0x24,
         1,
@@ -154,18 +152,6 @@ struct MIDIAdapter {
         jacks_len & 0xff,
         jacks_len >> 8
     };
-
-    constexpr MIDIAdapter(
-        const JACK_DESCS&... jacks
-    ) {
-        (AppendDesc(jacks),...);
-    }
-
-    size_t begin = 7;
-    template<class DESC>
-    constexpr void AppendDesc(const DESC& desc) {
-        begin = char_array.Copy(begin, desc.char_array);
-    }
 };
 
 template<size_t NUM_MIDI_JACK>
@@ -188,7 +174,7 @@ struct EndpointJackAssociation {
     }
 };
 
-// only keep $pack.address
+// keep $pack.address and $pack.max_pack_size
 template<size_t NUM_MIDI_JACK>
 struct MidiEndpoint : public EndpointLen9<EndpointJackAssociation<NUM_MIDI_JACK>> {
     constexpr MidiEndpoint(
@@ -197,7 +183,7 @@ struct MidiEndpoint : public EndpointLen9<EndpointJackAssociation<NUM_MIDI_JACK>
     ) : EndpointLen9<EndpointJackAssociation<NUM_MIDI_JACK>>(
         BulkInitPackLen9{
             .address = pack.address,
-            .max_pack_size = 0,
+            .max_pack_size = pack.max_pack_size,
             .interval = 0,
             .refresh = 0,
             .sync_address = 0
@@ -209,14 +195,15 @@ struct MidiEndpoint : public EndpointLen9<EndpointJackAssociation<NUM_MIDI_JACK>
 };
 
 // 1. one @InterfaceInitPackClassed, $protocol is ignore
-// 2. one @MIDIAdapter
-// 3. any @MidiEndpoint
+// 2. any @ExternalMidiInJack
+// 3. any @ExternalMidiOutJack
+// 4. any @MidiEndpoint
 template<class... DESCS>
-struct MIDIStreamInterface : public Interface<DESCS...> {
+struct MIDIStreamInterface : public Interface<MIDIAdapterHeader<DESCS...>, DESCS...> {
     constexpr MIDIStreamInterface(
         InterfaceInitPackClassed pack,
         const DESCS&... descs)
-    : Interface<DESCS...>(
+    : Interface<MIDIAdapterHeader<DESCS...>, DESCS...>(
         InterfaceInitPack{
             .interface_no = pack.interface_no,
             .alter = pack.alter,
@@ -225,6 +212,7 @@ struct MIDIStreamInterface : public Interface<DESCS...> {
             .protocol = 0,
             .str_id = pack.str_id
         },
+        MIDIAdapterHeader<DESCS...>{},
         descs...
     ) {
 
