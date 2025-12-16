@@ -27,3 +27,7 @@ static constexpr auto str3 = USB_STR(u8"0123456789");
 static constexpr auto cmp1 = Compare(MyManuInfo, str1.char_array.desc);
 static constexpr auto cmp2 = Compare(MyProdInfo, str2.char_array.desc);
 static constexpr auto cmp3 = Compare(MySerNumInfo, str3.char_array.desc);
+
+static_assert(!cmp1.diff, "");
+static_assert(!cmp2.diff, "");
+static_assert(!cmp3.diff, "");

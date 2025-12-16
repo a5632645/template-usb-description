@@ -7,6 +7,7 @@ struct CompareResult {
     uint8_t a = 0;
     uint8_t b = 0;
 };
+
 template<size_t N1>
 static constexpr CompareResult Compare(const uint8_t(&a)[N1], const uint8_t(&b)[N1]) {
     CompareResult res;

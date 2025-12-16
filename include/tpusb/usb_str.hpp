@@ -1,16 +1,39 @@
 #pragma once
 #include "usb.hpp"
 
+namespace tpusb {
+
 namespace internal {
 
-template<class CharType, size_t len, const CharType (&str)[len]>
+template<std::size_t N>
+struct TemplateString {
+    constexpr TemplateString(const char (&str)[N]) {
+        for (size_t i = 0; i < N; ++i) {
+            char_array[i] = str[i];
+        }
+    }
+
+#if __cplusplus >= 202002L
+    constexpr TemplateString(const char8_t (&str)[N]) {
+        for (size_t i = 0; i < N; ++i) {
+            char_array[i] = str[i];
+        }
+    }
+#endif
+
+    constexpr char operator[](size_t i) const { return char_array[i]; }
+
+    char char_array[N];
+};
+
+template<size_t N, TemplateString<N> str>
 struct CompileTimeUtf8ToUnicodeLength {
     template<size_t counter, size_t offset>
     static constexpr size_t GetUnicodeLength2() {
-        if constexpr (offset == len) {
+        if constexpr (offset == N) {
             return counter - 1;
         }
-        else if constexpr (offset > len) {
+        else if constexpr (offset > N) {
             throw "not utf8";
             return counter;
         }
@@ -38,9 +61,9 @@ struct CompileTimeUtf8ToUnicodeLength {
     }
 };
 
-template<class CharType, size_t size, const CharType (&str)[size]>
+template<size_t N, TemplateString<N> str>
 struct CompileTimeUtf8ToUnicode {
-    static constexpr size_t len = CompileTimeUtf8ToUnicodeLength<CharType, size, str>::GetUnicodeLength() * 2 + 2;
+    static constexpr size_t len = CompileTimeUtf8ToUnicodeLength<N, str>::GetUnicodeLength() * 2 + 2;
     CharArray<len> char_array {
         len,
         3
@@ -50,7 +73,7 @@ struct CompileTimeUtf8ToUnicode {
         size_t pos = 0;
         size_t wpos = 0;
 
-        while (pos < size - 1) {
+        while (pos < N - 1) {
             uint32_t code = 0;
             auto c = str[pos];
 
@@ -80,14 +103,14 @@ struct CompileTimeUtf8ToUnicode {
             ++wpos;
         }
 
-        if (pos != size - 1) {
+        if (pos != N - 1) {
             throw "not utf8";
         }
         
     }
 };
 
-}
+} // namespace internal
 
 template<size_t N>
 struct USBString {
@@ -98,13 +121,13 @@ struct USBString {
 #if __cplusplus >= 202002L
 #define USB_STR(STR)\
     []{\
-        static constexpr char str[] = STR;\
-        return internal::CompileTimeUtf8ToUnicode<char8_t, sizeof(str), str>{};\
+        return tpusb::internal::CompileTimeUtf8ToUnicode<sizeof(STR), STR>{};\
     }();
 #else
 #define USB_STR(STR)\
     []{\
-        static constexpr char str[] = STR;\
-        return internal::CompileTimeUtf8ToUnicode<char, sizeof(str), str>{};\
+        return tpusb::internal::CompileTimeUtf8ToUnicode<sizeof(STR), STR>{};\
     }();
 #endif
+
+} // namespace tpusb

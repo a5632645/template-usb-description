@@ -5,6 +5,10 @@
 #include "tpusb/cdc.hpp"
 #include "comp.hpp"
 
+using namespace tpusb;
+using namespace tpusb::uac2;
+using namespace tpusb::cdc;
+
 static constexpr auto test =
 Config{
     ConfigInitPack{
@@ -24,21 +28,32 @@ Config{
             },
             AudioFunction{
                 AudioFunctionInitPack{
-                    0x0200, 1, 0
+                    .bcd_adc = 0x0200,
+                    .catalog = AudioFunctionCatalog::kDesktopSpeaker,
+                    .controls = 0
                 },
-                Clock{
+                audio_function::Clock{
                     3, 2, 3, 0, 0
                 },
-                InputTerminal{
-                    1, 0x0101, 0, 3, 0, 0, {2, 0x3, 0}
+                audio_function::InputTerminal{
+                    1, 0x0101, 0, 3, 0, 0,
+                    ChannelInitPack{
+                        2,
+                        ChannelSpatialLocation::kFrontLeft | ChannelSpatialLocation::kFrontRight,
+                        0
+                    }
                 },
-                FeatureUnit<3>{
-                    FeatureUnitInitPack{
-                        4, 1, 0
+                audio_function::FeatureUnit<3>{
+                    audio_function::FeatureUnitInitPack{
+                        4,
+                        1,
+                        0
                     },
-                    {0xf, 0xf, 0xf}
+                    {
+                        0xf, 0xf, 0xf
+                    }
                 },
-                OutputTerminal{
+                audio_function::OutputTerminal{
                     2, 0x0301, 0, 4, 3, 0, 0
                 }
             }
@@ -62,8 +77,9 @@ Config{
                 IsochronousInitPack{
                     1, 1024, 1, SynchronousType::Isochronous, IsoEpType::Data
                 },
-                CustomDesc{
-                    std::array{8, 0x25, 0x01, 0, 0, 0, 0, 0}
+                // 手册86页
+                CustomDesc<8>{
+                    {8, 0x25, 0x01, 0, 0, 0, 0, 0}
                 }
             },
             Endpoint{

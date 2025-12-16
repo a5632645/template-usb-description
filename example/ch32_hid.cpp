@@ -2,7 +2,10 @@
 #include "tpusb/usb.hpp"
 #include "comp.hpp"
 
-static constexpr auto hid =
+using namespace tpusb;
+using namespace tpusb::hid;
+
+static constexpr auto config =
 Config{
     ConfigInitPack{
         .config_no = 1,
@@ -95,7 +98,7 @@ constexpr uint8_t  MyCfgDescr_HS[ ] =
     0x01,                           // bInterval: 1mS
 };
 
-static constexpr auto cmp = Compare(MyCfgDescr_HS, hid.char_array.desc);
+static constexpr auto cmp = Compare(MyCfgDescr_HS, config.char_array.desc);
 static constexpr uint32_t fs[] {
     cmp.a,
     cmp.b,

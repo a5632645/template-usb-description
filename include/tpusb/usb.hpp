@@ -4,10 +4,21 @@
 #include <type_traits>
 #include <cstdint>
 
+namespace tpusb {
+
 // --------------------------------------------------------------------------------
 // STANDARD USB
 // --------------------------------------------------------------------------------
 
+// ----------------------------------------
+// CharArray
+// ----------------------------------------
+
+/**
+ * @brief 一个在编译期拼接的uint8数组，用于USB描述
+ * 
+ * @tparam N 
+ */
 template<size_t N>
 struct CharArray {
     static constexpr size_t desc_len = N;
@@ -40,20 +51,42 @@ struct CharArray {
     }
 };
 
+/**
+ * @brief 获取描述结构体的CharArray的长度
+ * 
+ * @tparam DESC 
+ */
 template<class DESC>
 static constexpr size_t desc_len = DESC::len;
 
+/**
+ * @brief 获取整个描述的长度
+ * 
+ * @tparam DESC 
+ */
 template<class...DESC>
 struct DESC_LEN_SUMMER {
     static constexpr size_t len = (0 + ... + desc_len<DESC>);
 };
 
+// ----------------------------------------
+// USB Endpoint
+// ----------------------------------------
+
+/**
+ * @brief USB块传输端点描述
+ * 
+ */
 struct BulkInitPack {
     uint8_t address;
     uint16_t max_pack_size;
     uint8_t interval;
 };
 
+/**
+ * @brief 似乎是旧版的USB块传输端点描述
+ * 
+ */
 struct BulkInitPackLen9 {
     uint8_t address;
     uint16_t max_pack_size;
@@ -62,12 +95,20 @@ struct BulkInitPackLen9 {
     uint8_t sync_address;
 };
 
+/**
+ * @brief USB中断传输端点描述
+ * 
+ */
 struct InterruptInitPack {
     uint8_t address;
     uint16_t max_pack_size;
     uint8_t interval;
 };
 
+/**
+ * @brief 旧版USB中断传输端点描述
+ * 
+ */
 struct InterruptInitPackLen9 {
     uint8_t address;
     uint16_t max_pack_size;
@@ -76,6 +117,10 @@ struct InterruptInitPackLen9 {
     uint8_t sync_address;
 };
 
+/**
+ * @brief USB同步传输同步类型
+ * 
+ */
 enum class SynchronousType {
     None,
     Isochronous,
@@ -83,12 +128,20 @@ enum class SynchronousType {
     Synchronous
 };
 
+/**
+ * @brief USB同步传输同步方式
+ * 
+ */
 enum class IsoEpType {
     Data,
     Feedback,
     ImplicitFeedback
 };
 
+/**
+ * @brief USB同步传输端点描述
+ * 
+ */
 struct IsochronousInitPack {
     uint8_t address;
     uint16_t max_pack_size;
@@ -97,6 +150,10 @@ struct IsochronousInitPack {
     IsoEpType endpoint_type;
 };
 
+/**
+ * @brief 旧版USB同步传输端点描述
+ * 
+ */
 struct IsochronousInitPackLen9 {
     uint8_t address;
     uint16_t max_pack_size;
@@ -107,12 +164,20 @@ struct IsochronousInitPackLen9 {
     uint8_t sync_address;
 };
 
+/**
+ * @brief USB控制传输端点描述
+ * 
+ */
 struct ControlInitPack {
     uint8_t address;
     uint16_t max_pack_size;
     uint8_t interval;
 };
 
+/**
+ * @brief 旧版USB控制传输端点描述
+ * 
+ */
 struct ControlInitPackLen9 {
     uint8_t address;
     uint16_t max_pack_size;
@@ -121,6 +186,10 @@ struct ControlInitPackLen9 {
     uint8_t sync_address;
 };
 
+/**
+ * @brief USB端点接口
+ * 
+ */
 struct IEndpoint {
     static constexpr size_t len_offset = 0;
     static constexpr size_t desc_type_offset = 1;
@@ -187,6 +256,11 @@ struct Endpoint : public IEndpoint {
     }
 };
 
+/**
+ * @brief 旧版USB端点接口
+ * 
+ * @tparam DESCS 
+ */
 template<class... DESCS>
 struct EndpointLen9 : public IEndpoint {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;
@@ -250,6 +324,14 @@ struct EndpointLen9 : public IEndpoint {
     }
 };
 
+// ----------------------------------------
+// USB Interface
+// ----------------------------------------
+
+/**
+ * @brief USB接口初始化
+ * 
+ */
 struct InterfaceInitPack {
     uint8_t interface_no;
     uint8_t alter;
@@ -258,6 +340,11 @@ struct InterfaceInitPack {
     uint8_t protocol;
     uint8_t str_id;
 };
+
+/**
+ * @brief 具有默认类的USB接口初始化
+ * 
+ */
 struct InterfaceInitPackClassed {
     uint8_t interface_no;
     uint8_t alter;
@@ -265,6 +352,10 @@ struct InterfaceInitPackClassed {
     uint8_t str_id;
 };
 
+/**
+ * @brief USB接口
+ * 
+ */
 struct IInterface {
     static constexpr size_t interface_no_offset = 2;
     static constexpr size_t alter_offset = 3;
@@ -274,6 +365,7 @@ struct IInterface {
     static constexpr size_t protocol_offset = 7;
     static constexpr size_t str_id_offset = 8;
 };
+
 /*
  * when placed into a interface
  * the interface will copy the endpoint's descriptor
@@ -287,6 +379,7 @@ struct IInterface {
  * but the num of endpoint will not
 */
 struct IInterfaceCustom {};
+
 template<class... DESCS>
 struct Interface : public IInterface {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;
@@ -310,7 +403,7 @@ struct Interface : public IInterface {
     template<class DESC>
     constexpr void AppendDesc(const DESC& desc) {
         if constexpr (std::is_base_of_v<IEndpoint, DESC>) {
-            char_array[4]++;
+            char_array[IInterface::num_endpoint_offset]++;
         }
         else if constexpr (std::is_base_of_v<IInterfaceCustom, DESC>) {
             desc.OnAddToInterface(*this);
@@ -324,16 +417,22 @@ struct Interface : public IInterface {
     }
 };
 
+/**
+ * @brief USB接口关联
+ * 
+ */
 struct InterfaceAssociationInitPack {
     uint8_t function_class;
     uint8_t function_subclass;
     uint8_t function_protocol;
     uint8_t function_str_id;
 };
+
 struct IInterfaceAssociation {
     static constexpr size_t first_interface_offset = 2;
     static constexpr size_t interface_count_offset = 3;
 };
+
 /*
  * like the @IInterfaceCustom, if your class have 2 or more interface
  * you have to inherit from @IInterfaceAssociationCustom
@@ -343,6 +442,7 @@ struct IInterfaceAssociation {
  *  constexpr void OnAddToInterfaceAssociation(auto& association) const
 */
 struct IInterfaceAssociationCustom {};
+
 template<class... DESCS>
 struct InterfaceAssociation : public IInterfaceAssociation {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 8;
@@ -385,12 +485,21 @@ struct InterfaceAssociation : public IInterfaceAssociation {
     }
 };
 
+// ----------------------------------------
+// USB Config
+// ----------------------------------------
+
+/**
+ * @brief USB配置
+ * 
+ */
 struct ConfigInitPack {
     uint8_t config_no;
     uint8_t str_id;
     uint8_t attribute;
     uint8_t power;
 };
+
 struct IConfig {
     static constexpr size_t len_offset = 0;
     static constexpr size_t type_offset = 1;
@@ -400,6 +509,7 @@ struct IConfig {
     static constexpr size_t attribute_offset = 6;
     static constexpr size_t power_offset = 7;
 };
+
 /*
  * like the @IInterfaceCustom and @IInterfaceAssociationCustom
  * if your class have 2 or more interface or interface association
@@ -409,6 +519,7 @@ struct IConfig {
  * constexpr void OnAddToConfig(auto& config) const
 */
 struct IConfigCustom {};
+
 // 1. one @ConfigInitPack
 // 2. any @Interface or @InterfaceAssociation
 template<class... DESCS>
@@ -473,3 +584,4 @@ struct CustomDesc {
     }
 };
 
+}

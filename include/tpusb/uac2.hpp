@@ -2,19 +2,52 @@
 #include "usb.hpp"
 #include <cstdint>
 
+namespace tpusb::uac2 {
+
 // --------------------------------------------------------------------------------
 // UAC2  https://www.usb.org/sites/default/files/Audio2_with_Errata_and_ECN_through_Apr_2_2025.pdf
 // TODO
 //     add other audio functions
 // --------------------------------------------------------------------------------
 
+// ----------------------------------------
+// UAC控制接口
+// ----------------------------------------
+
+enum class AudioFunctionCatalog : uint8_t {
+    FUNCTION_SUBCLASS_UNDEFINED = 0x00,
+    kDesktopSpeaker,
+    kHomeTheater,
+    kMicrophone,
+    kHeadset,
+    kTelephone,
+    kConverter,
+    kVoiceSoundRecorder,
+    kIoBox,
+    kMusicalInstrument,
+    kProAudio,
+    kAudioVideo,
+    kControlPanel,
+    kOther = 0xff
+};
+
 struct AudioFunctionInitPack {
+    // 0x2000
     uint16_t bcd_adc;
-    uint8_t catalog;
+    AudioFunctionCatalog catalog;
+    // 0x00 不存在
+    // 0x01 只读
+    // 0x03 可读可写
+    // bits(1, 0) latency
     uint8_t controls;
 };
-// 1. one @AudioFunctionInitPack
-// 2. any AudioFunctions
+
+/**
+ * @brief Audio Function描述符
+ * 
+ * @tparam DESCS one @class AudioFunctionInitPack
+ *               any Audio Function Descriptor
+ */
 template<class... DESCS>
 struct AudioFunction {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + 9;
@@ -28,7 +61,7 @@ struct AudioFunction {
     constexpr AudioFunction(AudioFunctionInitPack pack, const DESCS&... desc) {
         char_array[3] = pack.bcd_adc & 0xff;
         char_array[4] = pack.bcd_adc >> 8;
-        char_array[5] = pack.catalog;
+        char_array[5] = static_cast<uint8_t>(pack.catalog);
         char_array[6] = len & 0xff;
         char_array[7] = len >> 8;
         char_array[8] = pack.controls;
@@ -45,6 +78,62 @@ struct AudioFunction {
     }
 };
 
+/**
+ * @brief 定义了 @class ChannelConfig 中的通道空间位置
+ * 
+ */
+enum ChannelSpatialLocation : uint32_t {
+    kFrontLeft               = 0x1,
+    kFrontRight              = 0x2,
+    kFrontCenter             = 0x4,
+    kLowFrequencyEffect      = 0x8,
+    kBackLeft                = 0x10,
+    kBackRight               = 0x20,
+    kFrontLeftOfCenter       = 0x40,
+    kFrontRightOfCenter      = 0x80,
+    kBackCenter              = 0x100,
+    kSideLeft                = 0x200,
+    kSideRight               = 0x400,
+    kTopCenter               = 0x800,
+    kTopFrontLeft            = 0x1000,
+    kTopFrontCenter          = 0x2000,
+    kTopFrontRight           = 0x4000,
+    kTopBackLeft             = 0x8000,
+    kTopBackCenter           = 0x10000,
+    kTopBackRight            = 0x20000,
+    kTopFrontLeftOfCenter    = 0x40000,
+    kTopFrontRightOfCenter   = 0x80000,
+    kLeftLowFrequencyEffect  = 0x100000,
+    kRightLowFrequencyEffect = 0x200000,
+    kTopSideLeft             = 0x400000,
+    kTopSideRight            = 0x800000,
+    kBottomCenter            = 0x1000000,
+    kBackLeftOfCenter        = 0x2000000,
+    kBackRightOfCenter       = 0x4000000,
+    RawData                  = 0x80000000
+};
+
+/**
+ * @brief UAC通道初始化
+ * 
+ */
+struct ChannelInitPack {
+    uint8_t num_channel;
+    // @enum ChannelSpatialLocation
+    uint32_t enum_channel_spatial_location;
+    uint8_t channel_str_id;
+};
+
+// ----------------------------------------
+// Audio Function
+// ----------------------------------------
+
+namespace audio_function {
+
+/**
+ * @brief UAC时钟
+ * 
+ */
 struct Clock {
     static constexpr size_t len = 8;
     CharArray<len> char_array {
@@ -53,7 +142,14 @@ struct Clock {
         0x0a
     };
 
-    constexpr Clock(uint8_t id, uint8_t attribute, uint8_t controls, uint8_t associate, uint8_t str_id) {
+    constexpr Clock(
+        uint8_t id,
+        // 手册50页
+        uint8_t attribute,
+        uint8_t controls,
+        uint8_t associate,
+        uint8_t str_id
+    ) {
         char_array[3] = id;
         char_array[4] = attribute;
         char_array[5] = controls;
@@ -62,12 +158,10 @@ struct Clock {
     }
 };
 
-struct ChannelInitPack {
-    uint8_t num_channel;
-    uint32_t channel_config;
-    uint8_t channel_str_id;
-};
-
+/**
+ * @brief UAC输入终端
+ * 
+ */
 struct InputTerminal {
     static constexpr size_t len = 17;
     CharArray<len> char_array {
@@ -76,17 +170,26 @@ struct InputTerminal {
         0x02
     };
 
-    constexpr InputTerminal(uint8_t id, uint16_t type, uint8_t associate, uint8_t clock_id, uint16_t control, uint8_t str_id, ChannelInitPack pack) {
+    constexpr InputTerminal(
+        uint8_t id,
+        uint16_t type,
+        uint8_t associate,
+        uint8_t clock_id,
+        // 手册53页
+        uint16_t control,
+        uint8_t str_id,
+        ChannelInitPack pack
+    ) {
         char_array[3] = id;
         char_array[4] = type & 0xff;
         char_array[5] = type >> 8;
         char_array[6] = associate;
         char_array[7] = clock_id;
         char_array[8] = pack.num_channel;
-        char_array[9] = pack.channel_config & 0xff;
-        char_array[10] = pack.channel_config >> 8;
-        char_array[11] = pack.channel_config >> 16;
-        char_array[12] = pack.channel_config >> 24;
+        char_array[9] = pack.enum_channel_spatial_location & 0xff;
+        char_array[10] = pack.enum_channel_spatial_location >> 8;
+        char_array[11] = pack.enum_channel_spatial_location >> 16;
+        char_array[12] = pack.enum_channel_spatial_location >> 24;
         char_array[13] = control & 0xff;
         char_array[14] = control >> 8;
         char_array[15] = pack.channel_str_id;
@@ -94,22 +197,87 @@ struct InputTerminal {
     }
 };
 
+/**
+ * @brief UAC输出终端
+ * 
+ */
+struct OutputTerminal {
+    static constexpr size_t len = 12;
+    CharArray<len> char_array {
+        12,
+        0x24,
+        0x03
+    };
+
+    constexpr OutputTerminal(
+        uint8_t id,
+        uint16_t type,
+        uint8_t associate,
+        uint8_t input_id,
+        uint8_t clock_id,
+        // 手册54页
+        uint16_t controls,
+        uint8_t str_id
+    ) {
+        char_array[3] = id;
+        char_array[4] = type & 0xff;
+        char_array[5] = type >> 8;
+        char_array[6] = associate;
+        char_array[7] = input_id;
+        char_array[8] = clock_id;
+        char_array[9] = controls & 0xff;
+        char_array[10] = controls >> 8;
+        char_array[11] = str_id;
+    }
+};
+
+/**
+ * @brief UAC特征初始化
+ * 
+ */
 struct FeatureUnitInitPack {
     uint8_t id;
     uint8_t source_id;
     uint8_t str_id;
 };
-// !!! this class have to manually set len in template
+
+enum ChannelFeatures : uint32_t {
+    kMute,
+    kVolume,
+    kbass,
+    kMid,
+    kTreble,
+    kGraphicEqualizer,
+    kAudiomaticGain,
+    kDelay,
+    kBassBoost,
+    kLoudness,
+    kInputGain,
+    kIutputGainPad,
+    kPhaseInvert,
+    kUnderflow,
+    kOverfflow,
+    kHighpass
+};
+
+/**
+ * @brief UAC特征单元描述符
+ * 
+ * @tparam N 通道数
+ */
 template<size_t N>
 struct FeatureUnit {
     static constexpr size_t len = 6 + N * 4;
     CharArray<len> char_array {
-        18,
+        len,
         0x24,
         0x06
     };
 
-    constexpr FeatureUnit(FeatureUnitInitPack pack, std::array<uint32_t, N> channel_features) {
+    constexpr FeatureUnit(
+        FeatureUnitInitPack pack,
+        std::array<uint32_t, N> channel_features
+    ) {
         char_array[3] = pack.id;
         char_array[4] = pack.source_id;
         char_array[len - 1] = pack.str_id;
@@ -124,29 +292,16 @@ struct FeatureUnit {
     }
 };
 
-struct OutputTerminal {
-    static constexpr size_t len = 12;
-    CharArray<len> char_array {
-        12,
-        0x24,
-        0x03
-    };
+} // namespace audio_function
 
-    constexpr OutputTerminal(uint8_t id, uint16_t type, uint8_t associate, uint8_t input_id, uint8_t clock_id, uint16_t controls, uint8_t str_id) {
-        char_array[3] = id;
-        char_array[4] = type & 0xff;
-        char_array[5] = type >> 8;
-        char_array[6] = associate;
-        char_array[7] = input_id;
-        char_array[8] = clock_id;
-        char_array[9] = controls & 0xff;
-        char_array[10] = controls >> 8;
-        char_array[11] = str_id;
-    }
-};
-
-// 1. one @InterfaceInitPack
-// 2. one @AudioFunction
+/**
+ * @brief UAC音频控制接口描述符
+ * 
+ * @tparam AUDIOFUNCTION 
+ *         1. 一个 @class AudioFunctionInitPack
+ *            protocol 0x20 IP_VERSION_02_00
+ *         2. 一个 @class AudioFunction
+ */
 template<class... AUDIOFUNCTION>
 struct AudioControlInterface : public Interface<AudioFunction<AUDIOFUNCTION...>> {
     constexpr AudioControlInterface(
@@ -165,6 +320,49 @@ struct AudioControlInterface : public Interface<AudioFunction<AUDIOFUNCTION...>>
     ) {}
 };
 
+/**
+ * @brief UAC音频控制接口描述符2，带有一个中断端点
+ * 
+ * @tparam AUDIOFUNCTION 
+ *         1. 一个 @class AudioFunctionInitPack
+ *            protocol 0x20 IP_VERSION_02_00
+ *         2. 一个 @class AudioFunction
+ *         3. 一个 @class InterruptInitPack, 自动将长度设为6
+ */
+template<class... AUDIOFUNCTION>
+struct AudioControlInterface2 : public Interface<AudioFunction<AUDIOFUNCTION...>, Endpoint<>> {
+    constexpr AudioControlInterface2(
+        InterfaceInitPackClassed pack,
+        const AudioFunction<AUDIOFUNCTION...>& function,
+        InterruptInitPack interrupt
+    ) : Interface<AudioFunction<AUDIOFUNCTION...>>(
+        InterfaceInitPack{
+            .interface_no = pack.interface_no,
+            .alter = pack.alter,
+            .class_ = 1,
+            .subclass = 1,
+            .protocol = pack.protocol,
+            .str_id = pack.str_id
+        },
+        function,
+        Endpoint<>{
+            InterruptInitPack{
+                .address = interrupt.address,
+                .max_pack_size = 6,
+                .interval = interrupt.interval
+            }
+        }
+    ) {}
+};
+
+// ----------------------------------------
+// UAC流接口
+// ----------------------------------------
+
+/**
+ * @brief UAC流格式描述符
+ * 
+ */
 struct AudioStreamFormat {
     static constexpr size_t len = 6;
     CharArray<len> char_array {
@@ -180,6 +378,10 @@ struct AudioStreamFormat {
     }
 };
 
+/**
+ * @brief UAC流终端描述符
+ * 
+ */
 struct TerminalLink {
     static constexpr size_t len = 16;
     CharArray<len> char_array {
@@ -197,19 +399,23 @@ struct TerminalLink {
         char_array[8] = formats >> 16;
         char_array[9] = formats >> 24;
         char_array[10] = pack.num_channel;
-        char_array[11] = pack.channel_config & 0xff;
-        char_array[12] = pack.channel_config >> 8;
-        char_array[13] = pack.channel_config >> 16;
-        char_array[14] = pack.channel_config >> 24;
+        char_array[11] = pack.enum_channel_spatial_location & 0xff;
+        char_array[12] = pack.enum_channel_spatial_location >> 8;
+        char_array[13] = pack.enum_channel_spatial_location >> 16;
+        char_array[14] = pack.enum_channel_spatial_location >> 24;
         char_array[15] = pack.channel_str_id;
     }
 };
 
-// this class contains 2 interfaces, one alter=0 and one alter=1
-// 1. one @InterfaceInitPackClassed, alter will be ignored
-// 2. one @TerminalLink
-// 3. any @AudioStreamFormat
-// 4. any @Endpoint
+/**
+ * @brief UAC流接口，该接口包含两个接口，alter=0为静音, alter=1为工作
+ * 
+ * @tparam DESCS 
+ *         1. one @class InterfaceInitPackClassed, alter will be ignored
+ *         2. one @class TerminalLink
+ *         3. any @class AudioStreamFormat
+ *         4. any @class Endpoint
+ */
 template<class... DESCS>
 struct AudioStreamInterface : public IConfigCustom, public IInterfaceAssociationCustom {
     static constexpr size_t len = DESC_LEN_SUMMER<DESCS...>::len + TerminalLink::len + 9 * 2;
@@ -237,7 +443,7 @@ struct AudioStreamInterface : public IConfigCustom, public IInterfaceAssociation
                 .alter = 1,
                 .class_ = 1,
                 .subclass = 2,
-                .protocol = 0x20,
+                .protocol = pack.protocol,
                 .str_id = pack.str_id
             },
             link,
@@ -266,13 +472,25 @@ struct AudioStreamInterface : public IConfigCustom, public IInterfaceAssociation
     }
 };
 
+// ----------------------------------------
+// UAC2接口关联
+// ----------------------------------------
+
 struct UAC2_InterfaceAssociation_InitPack {
     uint8_t str_id;
+    // 0x00 FUNCTION_PROTOCOL_UNDEFINED
+    // 0x20 AF_VERSION_02_00
     uint8_t protocol;
 };
-// 1. one @UAC2_InterfaceAssociation_InitPack
-// 2. one @AudioControlInterface
-// 3. any @AudioStreamInterface
+
+/**
+ * @brief 你应该直接在Config中使用该描述符
+ * 
+ * @tparam INTERFACE 
+ *         1. one @class UAC2_InterfaceAssociation_InitPack
+ *         2. one @class AudioControlInterface
+ *         3. any @class AudioStreamInterface
+ */
 template<class... INTERFACE>
 struct UAC2_InterfaceAssociation : public InterfaceAssociation<INTERFACE...> {
     constexpr UAC2_InterfaceAssociation(
@@ -288,3 +506,5 @@ struct UAC2_InterfaceAssociation : public InterfaceAssociation<INTERFACE...> {
         interface...
     ) {}
 };
+
+} // namespace tpusb::uac2

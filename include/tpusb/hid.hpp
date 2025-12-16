@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
+namespace tpusb::hid {
+
 struct HID_Descriptor_InitPack {
     uint16_t bcd_hid;
     uint8_t country_code;
@@ -59,7 +61,7 @@ struct HID_Interface : public Interface<DESCS...> {
     ) {}
 };
 
-enum class HIDBootProtocol {
+enum class HIDBootProtocol : uint8_t {
     None = 0,
     Keyboard,
     Mouse
@@ -91,3 +93,5 @@ struct HID_BOOT_Interface : public Interface<DESCS...> {
         descs...
     ) {}
 };
+
+}

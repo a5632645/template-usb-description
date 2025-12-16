@@ -8,13 +8,11 @@
 // --------------------------------------------------------------------------------
 // USB MIDI 1.0  https://usb.org/sites/default/files/midi10.pdf
 // TODO
-//     test it
 //     check compacable with uac
 //     add Element
 // --------------------------------------------------------------------------------
 
-namespace tpusb{
-namespace midiv1{
+namespace tpusb::midiv1 {
 
 enum class MidiJackType {
     EMBEDDED = 1,
@@ -219,5 +217,4 @@ struct MIDIStreamInterface : public Interface<MIDIAdapterHeader<DESCS...>, DESCS
     }
 };
 
-}
 }

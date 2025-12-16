@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
+namespace tpusb::cdc {
+
 // --------------------------------------------------------------------------------
 // CDC
 // --------------------------------------------------------------------------------
@@ -103,3 +105,5 @@ struct CDCDataInterface : public Interface<DESCS...> {
         pack.str_id
     }, descs...) {}
 };
+
+}
