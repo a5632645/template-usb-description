@@ -33,15 +33,26 @@ Config{
                     .controls = 0
                 },
                 audio_function::Clock{
-                    3, 2, 3, 0, 0
+                    3,
+                    0,
+                    0,
+                    audio_function::ClockAttribute{}
+                        .InternalVariableClock(),
+                    audio_function::ClockControls{}
+                        .FrequencyControl(true, true)
                 },
                 audio_function::InputTerminal{
-                    1, 0x0101, 0, 3, 0, 0,
+                    1,
+                    audio_function::TerminalType::kUsbStream,
+                    0,
+                    3,
+                    0,
                     ChannelInitPack{
                         2,
                         ChannelSpatialLocation::kFrontLeft | ChannelSpatialLocation::kFrontRight,
                         0
-                    }
+                    },
+                    audio_function::InputTerminalControls{}
                 },
                 audio_function::FeatureUnit<3>{
                     audio_function::FeatureUnitInitPack{
@@ -49,12 +60,19 @@ Config{
                         1,
                         0
                     },
-                    {
-                        0xf, 0xf, 0xf
-                    }
+                    audio_function::ChannelFeatureBuilder{}
+                        .Add(audio_function::ChannelFeatures::kMute, true, true)
+                        .Add(audio_function::ChannelFeatures::kVolume, true, true)
+                        .Duplicate<3>()
                 },
                 audio_function::OutputTerminal{
-                    2, 0x0301, 0, 4, 3, 0, 0
+                    2,
+                    audio_function::TerminalType::kSpeaker,
+                    0,
+                    4,
+                    3,
+                    0,
+                    audio_function::OutputTerminalControls{}
                 }
             }
         },

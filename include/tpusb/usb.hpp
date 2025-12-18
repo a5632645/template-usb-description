@@ -10,6 +10,15 @@ namespace tpusb {
 // STANDARD USB
 // --------------------------------------------------------------------------------
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winvalid-constexpr"
+static constexpr int TriggerConstexprError(const char*) {
+    volatile int x = 10;
+    // error: 'x' is a volatile-qualified glvalue
+    return x;
+}
+#pragma GCC diagnostic pop
+
 // ----------------------------------------
 // CharArray
 // ----------------------------------------
@@ -543,7 +552,7 @@ struct Config : public IConfig {
 
         // check config no
         if (pack.config_no == 0) {
-            throw "pack.config_no can not be 0";
+            TriggerConstexprError("config no can not be 0");
         }
     }
 
@@ -576,7 +585,7 @@ struct CustomDesc {
 
     constexpr CustomDesc(std::array<int, N> init) {
         if (N != init[0]) {
-            throw "len not equal";
+            TriggerConstexprError("array len is not equal to descriptor len");
         }
         for (size_t i = 0; i < N; ++i) {
             char_array[i] = init[i];

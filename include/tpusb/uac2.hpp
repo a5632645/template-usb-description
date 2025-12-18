@@ -130,6 +130,58 @@ struct ChannelInitPack {
 
 namespace audio_function {
 
+struct ClockAttribute {
+    uint8_t data{};
+
+    constexpr ClockAttribute ExternalClock() {
+        data &= ~0b11;
+        data |= 0b00;
+        return *this;
+    }
+    constexpr ClockAttribute InternalFixedClock() {
+        data &= ~0b11;
+        data |= 0b01;
+        return *this;
+    }
+    constexpr ClockAttribute InternalVariableClock() {
+        data &= ~0b11;
+        data |= 0b10;
+        return *this;
+    }
+    constexpr ClockAttribute InternalProgrammableClock() {
+        data &= ~0b11;
+        data |= 0b11;
+        return *this;
+    }
+
+    constexpr ClockAttribute SyncToSOF(bool sync) {
+        data &= ~0b100;
+        if (sync) data |= 0b000;
+        return *this;
+    }
+};
+
+struct ClockControls {
+    uint8_t data{};
+
+    constexpr ClockControls FrequencyControl(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+
+        data &= ~0b11;
+        if (read)   data |= 0b01;
+        if (write)  data |= 0b10;
+        return *this;
+    }
+    constexpr ClockControls ValidControl(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+
+        data &= ~0b1100;
+        if (read)   data |= 0b0100;
+        if (write)  data |= 0b1000;
+        return *this;
+    }
+};
+
 /**
  * @brief UAC时钟
  * 
@@ -142,19 +194,176 @@ struct Clock {
         0x0a
     };
 
+    // 手册50页
     constexpr Clock(
         uint8_t id,
-        // 手册50页
-        uint8_t attribute,
-        uint8_t controls,
-        uint8_t associate,
-        uint8_t str_id
+        uint8_t associate_terminal,
+        uint8_t str_id,
+        ClockAttribute attribute,
+        ClockControls controls
     ) {
         char_array[3] = id;
-        char_array[4] = attribute;
-        char_array[5] = controls;
-        char_array[6] = associate;
+        char_array[4] = attribute.data;
+        char_array[5] = controls.data;
+        char_array[6] = associate_terminal;
         char_array[7] = str_id;
+    }
+};
+
+template<size_t NSampleRates>
+struct ClockSampleRateList {
+    CharArray<2 + NSampleRates * 12> char_array{
+        NSampleRates & 0xff,
+        NSampleRates >> 8
+    };
+
+    constexpr ClockSampleRateList(
+        std::array<uint32_t, NSampleRates> list
+    ) {
+        size_t begin = 2;
+        for (size_t i = 0; i < NSampleRates; ++i) {
+            char_array[begin++] = list[i] & 0xff;
+            char_array[begin++] = list[i] >> 8;
+            char_array[begin++] = list[i] >> 16;
+            char_array[begin++] = list[i] >> 24;
+        }
+    }
+};
+
+/**
+ * @brief UAC终端类型
+ * @ref https://www.usb.org/sites/default/files/termt10.pdf
+ * 
+ */
+enum class TerminalType : uint16_t {
+    // usb
+    /* IO */ kUsbUndefined = 0x0100,
+    /* IO */ kUsbStream = 0x0101,
+    /* IO */ kVendorDefined = 0x01ff,
+
+    // input
+    /* I */ kInputUndefined = 0x0200,
+    /* I */ kMicrophone = 0x0201,
+    /* I */ kDesktopMicrophone = 0x0202,
+    /* I */ kPersonalMicrophone = 0x0203,
+    /* I */ kOmniDirectionalMicrophone = 0x0204,
+    /* I */ kMicrophoneArray = 0x0205,
+    /* I */ kProcessingMicrophoneArray = 0x0206,
+
+    // output
+    /* O */ kOutputUndefined = 0x0300,
+    /* O */ kSpeaker = 0x0301,
+    /* O */ kHeadphone = 0x0302,
+    /* O */ kHeadMountedDisplayAudio = 0x0303,
+    /* O */ kDesktopSpeaker = 0x0304,
+    /* O */ kRoomSpeaker = 0x0305,
+    /* O */ kCommunicationSpeaker = 0x0306,
+    /* O */ kLowFrequencyEffectSpeaker = 0x0307,
+
+    // bi-direction
+    /* IO */ kBiDirectionalUndefined = 0x0400,
+    /* IO */ kHandset = 0x0401,
+    /* IO */ kHeadset = 0x0402,
+    /* IO */ kSpeakerphoneNoAEC = 0x0403,
+    /* IO */ kSpeakerphoneEchoSuppressing = 0x0404,
+    /* IO */ kSpeakerphoneEchoCancel = 0x0405,
+
+    // telephony
+    /* IO */ kTelephonyUndefined = 0x0500,
+    /* IO */ kPhoneLine = 0x0501,
+    /* IO */ kTelephone = 0x0502,
+    /* IO */ kDownLinePhone = 0x0503,
+
+    // external
+    /* IO */ kExtenalUndefined = 0x0600,
+    /* IO */ kAnalogConnector = 0x0601,
+    /* IO */ kDigitalAudioInterface = 0x0602,
+    /* IO */ kLineConnector = 0x0603,
+    /* IO */ kLegacyAudioConnector = 0x0604,
+    /* IO */ kSPDIFInterface = 0x0605,
+    /* IO */ kDA1394Stream = 0x0606,
+    /* IO */ kDV1394StreamSoundTrack = 0x0607,
+
+    // embedded
+    /* IO */ kEmbeddedUndefined = 0x0700,
+    /*  O */ kLevelCalibrationNoise = 0x0701,
+    /*  O */ kEqualizationNoise = 0x0702,
+    /* I  */ kCdPlayer = 0x0703,
+    /* IO */ kDigitalAudioTape = 0x0704,
+    /* IO */ kDigitalCompactCassette = 0x0705,
+    /* IO */ kMiniDisk = 0x0706,
+    /* IO */ kAnalogTape = 0x0707,
+    /* I  */ kPhonograph = 0x0708,
+    /* I  */ kVCRAudio = 0x0709,
+    /* I  */ kVideoDiscAudio = 0x070a,
+    /* I  */ kDVDAudio = 0x070b,
+    /* I  */ kTvTunerAudio = 0x070c,
+    /* I  */ kSatelliteReceiverAudio = 0x070d,
+    /* I  */ kCableTunerAudio = 0x070e,
+    /* I  */ kDSSAudio = 0x070f,
+    /* I  */ kRatioReceiver = 0x0710,
+    /*  O */ kRatioTransmitter = 0x0711,
+    /* IO */ kMultiTrackRecorder = 0x0712,
+    /* I  */ kSynthesizer = 0x0713,
+};
+
+struct InputTerminalControls {
+    uint16_t data{};
+
+    constexpr InputTerminalControls CopyProtect(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        data &= ~0b11;
+        if (read)   data |= 0b01;
+        if (write)  data |= 0b10;
+        return *this;
+    }
+
+    constexpr InputTerminalControls Connector(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        data &= ~0b1100;
+        if (read)   data |= 0b0100;
+        if (write)  data |= 0b1000;
+        return *this;
+    }
+
+    constexpr InputTerminalControls Overload(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        data &= ~0b110000;
+        if (read)   data |= 0b010000;
+        if (write)  data |= 0b100000;
+        return *this;
+    }
+
+    constexpr InputTerminalControls Cluster(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        data &= ~0b11000000;
+        if (read)   data |= 0b01000000;
+        if (write)  data |= 0b10000000;
+        return *this;
+    }
+
+    constexpr InputTerminalControls Underflow(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        data &= ~0b1100000000;
+        if (read)   data |= 0b0100000000;
+        if (write)  data |= 0b1000000000;
+        return *this;
+    }
+
+    constexpr InputTerminalControls OverFlow(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        data &= ~0b110000000000;
+        if (read)   data |= 0b010000000000;
+        if (write)  data |= 0b100000000000;
+        return *this;
+    }
+
+    constexpr InputTerminalControls PhantomPower(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        data &= ~0b11000000000000;
+        if (read)   data |= 0b01000000000000;
+        if (write)  data |= 0b10000000000000;
+        return *this;
     }
 };
 
@@ -170,30 +379,74 @@ struct InputTerminal {
         0x02
     };
 
+    // 手册53页
     constexpr InputTerminal(
         uint8_t id,
-        uint16_t type,
-        uint8_t associate,
+        TerminalType type,
+        uint8_t associate_output_Terminal,
         uint8_t clock_id,
-        // 手册53页
-        uint16_t control,
         uint8_t str_id,
-        ChannelInitPack pack
+        ChannelInitPack pack,
+        InputTerminalControls controls
     ) {
         char_array[3] = id;
-        char_array[4] = type & 0xff;
-        char_array[5] = type >> 8;
-        char_array[6] = associate;
+        char_array[4] = static_cast<uint16_t>(type) & 0xff;
+        char_array[5] = static_cast<uint16_t>(type) >> 8;
+        char_array[6] = associate_output_Terminal;
         char_array[7] = clock_id;
         char_array[8] = pack.num_channel;
         char_array[9] = pack.enum_channel_spatial_location & 0xff;
         char_array[10] = pack.enum_channel_spatial_location >> 8;
         char_array[11] = pack.enum_channel_spatial_location >> 16;
         char_array[12] = pack.enum_channel_spatial_location >> 24;
-        char_array[13] = control & 0xff;
-        char_array[14] = control >> 8;
+        char_array[13] = controls.data & 0xff;
+        char_array[14] = controls.data >> 8;
         char_array[15] = pack.channel_str_id;
         char_array[16] = str_id;
+    }
+};
+
+struct OutputTerminalControls {
+    uint16_t data{};
+
+    constexpr OutputTerminalControls CopyProtect(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        data &= ~0b11;
+        if (read)   data |= 0b01;
+        if (write)  data |= 0b10;
+        return *this;
+    }
+
+    constexpr OutputTerminalControls Connector(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        data &= ~0b1100;
+        if (read)   data |= 0b0100;
+        if (write)  data |= 0b1000;
+        return *this;
+    }
+
+    constexpr OutputTerminalControls Overload(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        data &= ~0b110000;
+        if (read)   data |= 0b010000;
+        if (write)  data |= 0b100000;
+        return *this;
+    }
+
+    constexpr OutputTerminalControls Underflow(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        data &= ~0b11000000;
+        if (read)   data |= 0b01000000;
+        if (write)  data |= 0b10000000;
+        return *this;
+    }
+
+    constexpr OutputTerminalControls Overflow(bool read, bool write) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        data &= ~0b1100000000;
+        if (read)   data |= 0b0100000000;
+        if (write)  data |= 0b1000000000;
+        return *this;
     }
 };
 
@@ -209,24 +462,24 @@ struct OutputTerminal {
         0x03
     };
 
+    // 手册54页
     constexpr OutputTerminal(
         uint8_t id,
-        uint16_t type,
+        TerminalType type,
         uint8_t associate,
         uint8_t input_id,
         uint8_t clock_id,
-        // 手册54页
-        uint16_t controls,
-        uint8_t str_id
+        uint8_t str_id,
+        OutputTerminalControls controls
     ) {
         char_array[3] = id;
-        char_array[4] = type & 0xff;
-        char_array[5] = type >> 8;
+        char_array[4] = static_cast<uint16_t>(type) & 0xff;
+        char_array[5] = static_cast<uint16_t>(type) >> 8;
         char_array[6] = associate;
         char_array[7] = input_id;
         char_array[8] = clock_id;
-        char_array[9] = controls & 0xff;
-        char_array[10] = controls >> 8;
+        char_array[9] = controls.data & 0xff;
+        char_array[10] = controls.data >> 8;
         char_array[11] = str_id;
     }
 };
@@ -241,8 +494,8 @@ struct FeatureUnitInitPack {
     uint8_t str_id;
 };
 
-enum ChannelFeatures : uint32_t {
-    kMute,
+enum class ChannelFeatures : uint32_t {
+    kMute = 0,
     kVolume,
     kbass,
     kMid,
@@ -258,6 +511,32 @@ enum ChannelFeatures : uint32_t {
     kUnderflow,
     kOverfflow,
     kHighpass
+};
+
+struct ChannelFeatureBuilder {
+    uint32_t data{};
+
+    constexpr ChannelFeatureBuilder Add(
+        ChannelFeatures feature,
+        bool read,
+        bool write
+    ) {
+        if (!read && write) TriggerConstexprError("usb不允许只写属性");
+        uint32_t mask = 0b11 << (2 * static_cast<uint32_t>(feature));
+        uint32_t read_mask = 0b01 << (2 * static_cast<uint32_t>(feature));
+        uint32_t write_mask = 0b10 << (2 * static_cast<uint32_t>(feature));
+        data &= ~mask;
+        if (read)   data |= read_mask;
+        if (write)  data |= write_mask;
+        return *this;
+    }
+
+    template<size_t NDuplicate>
+    constexpr std::array<ChannelFeatureBuilder, NDuplicate> Duplicate() {
+        std::array<ChannelFeatureBuilder, NDuplicate> ret{};
+        for (size_t i = 0; i < NDuplicate; ++i) ret[i] = *this;
+        return ret;
+    }
 };
 
 /**
@@ -276,14 +555,14 @@ struct FeatureUnit {
 
     constexpr FeatureUnit(
         FeatureUnitInitPack pack,
-        std::array<uint32_t, N> channel_features
+        std::array<ChannelFeatureBuilder, N> channel_features
     ) {
         char_array[3] = pack.id;
         char_array[4] = pack.source_id;
         char_array[len - 1] = pack.str_id;
         for (size_t i = 0; i < N; ++i) {
             size_t offset = 5 + i * 4;
-            uint32_t feature = channel_features[i];
+            uint32_t feature = channel_features[i].data;
             char_array[offset] = feature & 0xff;
             char_array[offset + 1] = feature >> 8;
             char_array[offset + 2] = feature >> 16;
@@ -370,7 +649,7 @@ struct AudioStreamFormat {
         0x24,
         0x02
     };
-
+    
     constexpr AudioStreamFormat(uint8_t format_type, uint8_t subslotsize, uint8_t bits) {
         char_array[3] = format_type;
         char_array[4] = subslotsize;

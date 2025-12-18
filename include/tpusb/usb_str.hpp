@@ -34,7 +34,7 @@ struct CompileTimeUtf8ToUnicodeLength {
             return counter - 1;
         }
         else if constexpr (offset > N) {
-            throw "not utf8";
+            TriggerConstexprError("not a utf8 string");
             return counter;
         }
         else if constexpr ((str[offset] & 0x80) == 0) {
@@ -51,7 +51,7 @@ struct CompileTimeUtf8ToUnicodeLength {
             return GetUnicodeLength2<counter + 1, offset + 4>();
         } else {
             // Invalid UTF-8 start byte
-            throw "not utf8";
+            TriggerConstexprError("not a utf8 string");
             return counter;
         }
     }
@@ -95,7 +95,7 @@ struct CompileTimeUtf8ToUnicode {
                 pos += 4;
             } else {
                 // Invalid UTF-8 start byte
-                throw "not utf8";
+                TriggerConstexprError("not a utf8 string");
             }
 
             char_array[2 + wpos * 2] = code & 0xff;
@@ -104,7 +104,7 @@ struct CompileTimeUtf8ToUnicode {
         }
 
         if (pos != N - 1) {
-            throw "not utf8";
+            TriggerConstexprError("not a utf8 string");
         }
         
     }
