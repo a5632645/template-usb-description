@@ -11,6 +11,7 @@ namespace tpusb {
 // --------------------------------------------------------------------------------
 
 #pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpragmas"
 #pragma GCC diagnostic ignored "-Winvalid-constexpr"
 static constexpr int TriggerConstexprError(const char*) {
     volatile int x = 10;
@@ -550,7 +551,6 @@ struct Config : public IConfig {
         char_array[8] = pack.power;
         (AppendDesc(desc),...);
 
-        // check config no
         if (pack.config_no == 0) {
             TriggerConstexprError("config no can not be 0");
         }
