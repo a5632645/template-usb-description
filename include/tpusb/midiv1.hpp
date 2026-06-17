@@ -14,6 +14,58 @@
 
 namespace tpusb::midiv1 {
 
+struct IMidiJackDesc {};
+
+/**
+ * @brief USB AudioControl接口初始化参数，用于承载MIDIStreaming接口集合。
+ */
+struct AudioControlInitPack {
+    uint8_t interface_no;
+    uint8_t str_id;
+    uint16_t bcd_adc;
+};
+
+/**
+ * @brief USB Audio Class 1.0 AudioControl接口。
+ *
+ * @tparam NUM_STREAMING_INTERFACES 关联的MIDIStreaming接口数量
+ */
+template<size_t NUM_STREAMING_INTERFACES>
+struct AudioControlInterface : public IInterface {
+    static constexpr size_t cs_header_len = 8 + NUM_STREAMING_INTERFACES;
+    static constexpr size_t len = 9 + cs_header_len;
+    CharArray<len> char_array {
+        9,
+        4,
+    };
+
+    constexpr AudioControlInterface(
+        AudioControlInitPack pack,
+        std::array<uint8_t, NUM_STREAMING_INTERFACES> streaming_interfaces
+    ) {
+        char_array[2] = pack.interface_no;
+        char_array[3] = 0;
+        char_array[4] = 0;
+        char_array[5] = 1;
+        char_array[6] = 1;
+        char_array[7] = 0;
+        char_array[8] = pack.str_id;
+
+        char_array[9] = cs_header_len;
+        char_array[10] = 0x24;
+        char_array[11] = 1;
+        char_array[12] = pack.bcd_adc & 0xff;
+        char_array[13] = pack.bcd_adc >> 8;
+        char_array[14] = cs_header_len & 0xff;
+        char_array[15] = cs_header_len >> 8;
+        char_array[16] = NUM_STREAMING_INTERFACES;
+
+        for (size_t i = 0; i < NUM_STREAMING_INTERFACES; ++i) {
+            char_array[17 + i] = streaming_interfaces[i];
+        }
+    }
+};
+
 enum class MidiJackType {
     EMBEDDED = 1,
     EXTERNAL = 2,
@@ -79,7 +131,7 @@ struct MidiOutJack {
     }
 };
 
-struct ExternalMidiOutJack {
+struct ExternalMidiOutJack : public IMidiJackDesc {
     static constexpr size_t len = MIDIinJack::len + MidiOutJack<1>::len;
     CharArray<len> char_array;
 
@@ -108,7 +160,7 @@ struct ExternalMidiOutJack {
     }
 };
 
-struct ExternalMidiInJack {
+struct ExternalMidiInJack : public IMidiJackDesc {
     static constexpr size_t len = MIDIinJack::len + MidiOutJack<1>::len;
     CharArray<len> char_array;
 
@@ -139,7 +191,7 @@ struct ExternalMidiInJack {
 
 template<class... JACK_DESCS>
 struct MIDIAdapterHeader {
-    static constexpr size_t jacks_len = DESC_LEN_SUMMER<JACK_DESCS...>::len + 7;
+    static constexpr size_t jacks_len = (0 + ... + (std::is_base_of_v<IMidiJackDesc, JACK_DESCS> ? JACK_DESCS::len : 0)) + 7;
     static constexpr size_t len = 7;
     CharArray<7> char_array {
         7,
