@@ -63,8 +63,15 @@ Config{
 
 #define USB_MIDI_CLASS_DESC_SHIFT 18
 #define USB_MIDI_DESC_SIZE 7
-#define USB_MIDI_REPORT_DESC_SIZE (MIDI_IN_PORTS_NUM * 16 + MIDI_OUT_PORTS_NUM * 16 + 33)
-#define USB_MIDI_CONFIG_DESC_SIZE (USB_MIDI_REPORT_DESC_SIZE + USB_MIDI_CLASS_DESC_SHIFT)
+#define USB_MIDI_JACK_DESC_SIZE (6 + 9)
+// midi1.0手册明确指出 MIDI 1.0 MS Header 的 wTotalLength 只统计 Header / Jack / Element 描述符。
+// 但示例里的 完整 MIDI Streaming 接口长度另行统计标准端点和 Class-specific 端点描述符。
+#define USB_MIDI_MS_HEADER_TOTAL_LENGTH \
+    (USB_MIDI_DESC_SIZE + (MIDI_IN_PORTS_NUM + MIDI_OUT_PORTS_NUM) * USB_MIDI_JACK_DESC_SIZE)
+#define USB_MIDI_INTERFACE_DESC_SIZE \
+    (MIDI_IN_PORTS_NUM * 16 + MIDI_OUT_PORTS_NUM * 16 + 33)
+#define USB_MIDI_CONFIG_DESC_SIZE \
+    (USB_MIDI_INTERFACE_DESC_SIZE + USB_MIDI_CLASS_DESC_SHIFT)
 
 #define MIDI_DESCRIPTOR_TYPE 0x21
 
@@ -140,7 +147,7 @@ static constexpr uint8_t USBD_MIDI_CfgDesc[USB_MIDI_CONFIG_DESC_SIZE] =
         0x01, /*bDescriptorSubtype: MS_HEADER subtype*/
         0x00,
         0x01, /*BcdADC: Revision of this class specification*/
-        USB_MIDI_REPORT_DESC_SIZE,
+        USB_MIDI_MS_HEADER_TOTAL_LENGTH,
         0x00, /*wTotalLength: Total size of class-specific descriptors*/
 
 #if MIDI_IN_PORTS_NUM >= 1

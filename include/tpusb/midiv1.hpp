@@ -9,11 +9,15 @@
 // USB MIDI 1.0  https://usb.org/sites/default/files/midi10.pdf
 // TODO
 //     check compacable with uac
-//     add Element
 // --------------------------------------------------------------------------------
 
 namespace tpusb::midiv1 {
 
+/**
+ * @brief USB MIDI 1.0 Jack 描述符的标记基类。
+ *
+ * MIDIAdapterHeader 使用该基类识别并统计 MIDI Jack/Element 描述符。
+ */
 struct IMidiJackDesc {};
 
 /**
@@ -39,6 +43,12 @@ struct AudioControlInterface : public IInterface {
         4,
     };
 
+    /**
+     * @brief 构造 USB AudioControl 接口描述符。
+     *
+     * @param[in] pack AudioControl 接口的初始化参数
+     * @param[in] streaming_interfaces 关联的 MIDIStreaming 接口编号数组
+     */
     constexpr AudioControlInterface(
         AudioControlInitPack pack,
         std::array<uint8_t, NUM_STREAMING_INTERFACES> streaming_interfaces
@@ -66,11 +76,19 @@ struct AudioControlInterface : public IInterface {
     }
 };
 
+/**
+ * @brief MIDI Jack 的类型。
+ */
 enum class MidiJackType {
     EMBEDDED = 1,
     EXTERNAL = 2,
 };
 
+/**
+ * @brief MIDI IN Jack 描述符。
+ *
+ * 该描述符表示 MIDI 数据流进入设备或从设备外部进入的 Jack。
+ */
 struct MIDIinJack {
     static constexpr size_t len = 6;
     CharArray<len> char_array {
@@ -80,6 +98,14 @@ struct MIDIinJack {
 
     };
 
+    /**
+     * @brief 构造 MIDI IN Jack 描述符。
+     *
+     * @param[in] type Jack 类型
+     * @param[in] jack_id Jack 标识符，必须大于 0
+     * @param[in] str_id 描述 Jack 名称的字符串描述符索引
+     * @exception const char* 当 jack_id 小于 1 时抛出
+     */
     constexpr MIDIinJack(
         MidiJackType type,
         uint8_t jack_id,
@@ -95,11 +121,20 @@ struct MIDIinJack {
     }
 };
 
+/**
+ * @brief MIDI OUT Jack 的输入引脚连接关系。
+ * 将source_id的MidiInJack的第pin_connect脚连接到本MidiOutJack
+ */
 struct MidiOutJackConnection {
     uint8_t source_id;
     uint8_t pin_connect;
 };
 
+/**
+ * @brief MIDI OUT Jack 描述符。
+ *
+ * @tparam NUM_INPUT_PINS 该 Jack 的输入引脚数量
+ */
 template<size_t NUM_INPUT_PINS>
 struct MidiOutJack {
     static constexpr size_t len = 7 + 2 * NUM_INPUT_PINS;
@@ -109,6 +144,15 @@ struct MidiOutJack {
         3,
     };
 
+    /**
+     * @brief 构造 MIDI OUT Jack 描述符。
+     *
+     * @param[in] type Jack 类型
+     * @param[in] jack_id Jack 标识符
+     * @param[in] str_id 描述 Jack 名称的字符串描述符索引
+     * @param[in] connections 各输入引脚对应的源 Jack 和源引脚
+     * @exception const char* 当任意连接的 pin_connect 小于 1 时抛出
+     */
     constexpr MidiOutJack(
         MidiJackType type,
         uint8_t jack_id,
@@ -131,10 +175,20 @@ struct MidiOutJack {
     }
 };
 
+/**
+ * @brief 由 Embedded MIDI IN Jack 和 External MIDI OUT Jack 组成的 Jack 描述符集合。
+ */
 struct ExternalMidiOutJack : public IMidiJackDesc {
     static constexpr size_t len = MIDIinJack::len + MidiOutJack<1>::len;
     CharArray<len> char_array;
 
+    /**
+     * @brief 构造 External MIDI OUT Jack 描述符集合。
+     *
+     * @param[in] usb_in_id 设备侧 Embedded MIDI IN Jack 的标识符
+     * @param[in] out_jack_id 外部 MIDI OUT Jack 的标识符
+     * @exception const char* 当 usb_in_id 小于 1 时抛出
+     */
     constexpr ExternalMidiOutJack(
         uint8_t usb_in_id,
         uint8_t out_jack_id
@@ -160,10 +214,20 @@ struct ExternalMidiOutJack : public IMidiJackDesc {
     }
 };
 
+/**
+ * @brief 由 External MIDI IN Jack 和 Embedded MIDI OUT Jack 组成的 Jack 描述符集合。
+ */
 struct ExternalMidiInJack : public IMidiJackDesc {
     static constexpr size_t len = MIDIinJack::len + MidiOutJack<1>::len;
     CharArray<len> char_array;
 
+    /**
+     * @brief 构造 External MIDI IN Jack 描述符集合。
+     *
+     * @param[in] usb_out_id 设备侧 Embedded MIDI OUT Jack 的标识符
+     * @param[in] in_jack_id 外部 MIDI IN Jack 的标识符
+     * @exception const char* 当 in_jack_id 小于 1 时抛出
+     */
     constexpr ExternalMidiInJack(
         uint8_t usb_out_id,
         uint8_t in_jack_id
@@ -189,9 +253,92 @@ struct ExternalMidiInJack : public IMidiJackDesc {
     }
 };
 
-template<class... JACK_DESCS>
+/**
+ * @brief MIDI Element 输入 Pin 的连接关系。
+ *
+ * @note source_id 为源 Entity 的标识符，pin_connect 为该 Entity 的输出 Pin 编号。
+ */
+struct MidiElementConnection {
+    uint8_t source_id;
+    uint8_t pin_connect;
+};
+
+/**
+ * @brief USB MIDI 1.0 Element 描述符。
+ *
+ * Element 用于描述 MIDI 数据的处理实体，并可连接输入 Terminal、输出 Terminal
+ * 以及一个或多个输入 Entity。描述符中的能力位图长度由模板参数决定。
+ *
+ * @tparam NUM_INPUT_PINS Element 的输入 Pin 数量
+ * @tparam NUM_CAPABILITY_BYTES bmElementCaps 的字节数
+ * @note 至少应设置一个能力位；没有其他适用能力时建议设置 D7。
+ */
+template<size_t NUM_INPUT_PINS, size_t NUM_CAPABILITY_BYTES>
+struct MidiElement : public IMidiJackDesc {
+    static_assert(NUM_INPUT_PINS <= 0xff);
+    static_assert(NUM_CAPABILITY_BYTES > 0);
+    static_assert(NUM_CAPABILITY_BYTES <= 0xff);
+
+    static constexpr size_t len = 10 + 2 * NUM_INPUT_PINS + NUM_CAPABILITY_BYTES;
+    static_assert(len <= 0xff);
+    static constexpr uint8_t kDescriptorSubtype = 0x04;
+    CharArray<len> char_array {
+        len,
+        0x24,
+        kDescriptorSubtype,
+    };
+
+    /**
+     * @brief 构造 USB MIDI 1.0 Element 描述符。
+     *
+     * @param[in] element_id Element 的唯一标识符
+     * @param[in] input_pins Element 输入 Pin 的源 Entity 和源 Pin 列表
+     * @param[in] num_output_pins Element 的输出 Pin 数量
+     * @param[in] in_terminal_link 关联的输入 Terminal 标识符；无关联时为 0
+     * @param[in] out_terminal_link 关联的输出 Terminal 标识符；无关联时为 0
+     * @param[in] element_caps Element 能力位图
+     * @param[in] str_id 描述 Element 的字符串描述符索引
+     * @pre element_caps 至少包含 1 个字节
+     */
+    constexpr MidiElement(
+        uint8_t element_id,
+        std::array<MidiElementConnection, NUM_INPUT_PINS> input_pins,
+        uint8_t num_output_pins,
+        uint8_t in_terminal_link,
+        uint8_t out_terminal_link,
+        std::array<uint8_t, NUM_CAPABILITY_BYTES> element_caps,
+        uint8_t str_id
+    ) noexcept {
+        char_array[3] = element_id;
+        char_array[4] = NUM_INPUT_PINS;
+
+        size_t begin = 5;
+        for (MidiElementConnection pin : input_pins) {
+            char_array[begin++] = pin.source_id;
+            char_array[begin++] = pin.pin_connect;
+        }
+
+        char_array[begin++] = num_output_pins;
+        char_array[begin++] = in_terminal_link;
+        char_array[begin++] = out_terminal_link;
+        char_array[begin++] = NUM_CAPABILITY_BYTES;
+
+        for (uint8_t capability : element_caps) {
+            char_array[begin++] = capability;
+        }
+
+        char_array[begin] = str_id;
+    }
+};
+
+/**
+ * @brief USB MIDI 1.0 MIDIStreaming 类头描述符。
+ *
+ * @tparam DESCS MIDIStreaming 接口中待拼接的描述符类型；统计其中的 MIDI Jack 和 Element 描述符
+ */
+template<class... DESCS>
 struct MIDIAdapterHeader {
-    static constexpr size_t jacks_len = (0 + ... + (std::is_base_of_v<IMidiJackDesc, JACK_DESCS> ? JACK_DESCS::len : 0)) + 7;
+    static constexpr size_t kTotalLen = (0 + ... + ((std::is_base_of_v<IMidiJackDesc, DESCS>) ? DESCS::len : 0)) + 7;
     static constexpr size_t len = 7;
     CharArray<7> char_array {
         7,
@@ -199,11 +346,16 @@ struct MIDIAdapterHeader {
         1,
         0x00,
         0x01,
-        jacks_len & 0xff,
-        jacks_len >> 8
+        kTotalLen & 0xff,
+        kTotalLen >> 8
     };
 };
 
+/**
+ * @brief MIDI Streaming Class-specific Endpoint 描述符中的 Jack 关联信息。
+ *
+ * @tparam NUM_MIDI_JACK 关联的 MIDI Jack 数量
+ */
 template<size_t NUM_MIDI_JACK>
 struct EndpointJackAssociation {
     static constexpr size_t len = 4 + NUM_MIDI_JACK;
@@ -214,6 +366,12 @@ struct EndpointJackAssociation {
         NUM_MIDI_JACK
     };
 
+    /**
+     * @brief 构造 MIDI Endpoint 的 Jack 关联描述符。
+     *
+     * @param[in] jacks 与 Endpoint 关联的 Jack 标识符列表
+     * @pre jacks 中的标识符数量应与 NUM_MIDI_JACK 一致
+     */
     constexpr EndpointJackAssociation(
         std::initializer_list<uint8_t> jacks
     ) {
@@ -225,8 +383,20 @@ struct EndpointJackAssociation {
 };
 
 // keep $pack.address and $pack.max_pack_size
+/**
+ * @brief 带 MIDI Jack 关联信息的 Bulk Endpoint 描述符。
+ *
+ * @tparam NUM_MIDI_JACK 该 Endpoint 关联的 MIDI Jack 数量
+ */
 template<size_t NUM_MIDI_JACK>
 struct MidiEndpoint : public EndpointLen9<EndpointJackAssociation<NUM_MIDI_JACK>> {
+    /**
+     * @brief 构造 MIDI Bulk Endpoint 描述符。
+     *
+     * @param[in] pack Bulk Endpoint 的地址和最大数据包大小
+     * @param[in] association Endpoint 关联的 Jack 描述符
+     * @note 当前实现将 Endpoint 的 interval、refresh 和 sync_address 固定为 0。
+     */
     constexpr MidiEndpoint(
         BulkInitPack pack,
         const EndpointJackAssociation<NUM_MIDI_JACK>& association
@@ -244,12 +414,21 @@ struct MidiEndpoint : public EndpointLen9<EndpointJackAssociation<NUM_MIDI_JACK>
     }
 };
 
-// 1. one @InterfaceInitPackClassed, $protocol is ignore
-// 2. any @ExternalMidiInJack
-// 3. any @ExternalMidiOutJack
-// 4. any @MidiEndpoint
+/**
+ * @brief USB MIDI 1.0 MIDIStreaming 接口描述符。
+ *
+ * 该结构会自动添加 MIDIAdapterHeader，并按参数顺序拼接 Jack、Element 和 Endpoint 描述符。
+ *
+ * @tparam DESCS MIDIStreaming 接口中要拼接的描述符类型
+ */
 template<class... DESCS>
 struct MIDIStreamInterface : public Interface<MIDIAdapterHeader<DESCS...>, DESCS...> {
+    /**
+     * @brief 构造 USB MIDI 1.0 MIDIStreaming 接口描述符。
+     *
+     * @param[in] pack MIDIStreaming 接口的初始化参数
+     * @param[in] descs 要按顺序拼接到接口中的 Jack、Element 和 Endpoint 描述符
+     */
     constexpr MIDIStreamInterface(
         InterfaceInitPackClassed pack,
         const DESCS&... descs)
